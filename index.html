@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <meta name="theme-color" content="#2C2C1E" />
+  <meta name="application-name" content="Budget Tracker" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Budget Tracker" />
+  <title>Budget Tracker</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="./assets/icons/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="./assets/icons/favicon-16x16.png" />
+  <link rel="shortcut icon" href="./assets/icons/favicon.ico" />
+  <link rel="apple-touch-icon" sizes="180x180" href="./assets/icons/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/style.css" />
+</head>
+<body>
+
+  <div id="splash">
+    <div class="splash-inner">
+      <div class="splash-icon">
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+          <rect width="52" height="52" rx="16" fill="#8B7355"/>
+          <path d="M13 37 L26 15 L39 37" stroke="#F5F0E8" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="26" cy="15" r="3.2" fill="#F5F0E8"/>
+          <line x1="17" y1="30" x2="35" y2="30" stroke="#F5F0E8" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+        </svg>
+      </div>
+      <h1 class="splash-title">Budget Tracker</h1>
+      <p class="splash-sub">Catat keuanganmu dengan mudah</p>
+    </div>
+  </div>
+
+  <div id="pin-screen" class="pin-screen hidden">
+    <div class="pin-shell">
+      <div class="pin-logo">
+        <svg width="48" height="48" viewBox="0 0 52 52" fill="none">
+          <rect width="52" height="52" rx="16" fill="#8B7355"/>
+          <path d="M13 37 L26 15 L39 37" stroke="#F5F0E8" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="26" cy="15" r="3.2" fill="#F5F0E8"/>
+          <line x1="17" y1="30" x2="35" y2="30" stroke="#F5F0E8" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+        </svg>
+      </div>
+      <h2 id="pin-title" class="pin-title">Buat PIN Aplikasi</h2>
+      <p id="pin-subtitle" class="pin-subtitle">Masukkan 4 digit PIN untuk melindungi aplikasi.</p>
+      <div class="pin-dots">
+        <span id="pin-dot-1" class="pin-dot"></span>
+        <span id="pin-dot-2" class="pin-dot"></span>
+        <span id="pin-dot-3" class="pin-dot"></span>
+        <span id="pin-dot-4" class="pin-dot"></span>
+      </div>
+      <p id="pin-error" class="pin-error"></p>
+      <div class="pin-top-actions">
+        <button id="pin-forgot-btn" type="button" class="pin-link hidden" onclick="pinForgot()">Lupa PIN</button>
+        <button id="pin-cancel-btn" type="button" class="pin-link hidden" onclick="pinCancel()">Batal</button>
+      </div>
+      <div class="pin-keypad">
+        <button type="button" class="pin-key" onclick="pinInput('1')">1</button>
+        <button type="button" class="pin-key" onclick="pinInput('2')">2</button>
+        <button type="button" class="pin-key" onclick="pinInput('3')">3</button>
+        <button type="button" class="pin-key" onclick="pinInput('4')">4</button>
+        <button type="button" class="pin-key" onclick="pinInput('5')">5</button>
+        <button type="button" class="pin-key" onclick="pinInput('6')">6</button>
+        <button type="button" class="pin-key" onclick="pinInput('7')">7</button>
+        <button type="button" class="pin-key" onclick="pinInput('8')">8</button>
+        <button type="button" class="pin-key" onclick="pinInput('9')">9</button>
+        <button type="button" class="pin-key pin-key-muted" onclick="pinBackspace()">DEL</button>
+        <button type="button" class="pin-key" onclick="pinInput('0')">0</button>
+        <button type="button" class="pin-key pin-key-muted" onclick="pinClear()">CLR</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="app" class="hidden">
+
+    <header class="topbar">
+      <div class="topbar-brand">
+        <svg width="26" height="26" viewBox="0 0 52 52" fill="none">
+          <rect width="52" height="52" rx="16" fill="#8B7355"/>
+          <path d="M13 37 L26 15 L39 37" stroke="#F5F0E8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="26" cy="15" r="3.2" fill="#F5F0E8"/>
+          <line x1="17" y1="30" x2="35" y2="30" stroke="#F5F0E8" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
+        </svg>
+        <span class="topbar-title">Budget Tracker</span>
+      </div>
+      <button class="icon-btn" onclick="showPage('settings')" title="Pengaturan">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </header>
+
+    <main class="page-container">
+
+      <section id="page-dashboard" class="page active">
+        <div class="page-scroll">
+
+          <div class="hero-card">
+            <div class="hero-top">
+              <span class="hero-label">Ringkasan Bulan Ini</span>
+              <select id="dash-month-filter" class="hero-select" onchange="loadDashboard()"></select>
+            </div>
+            <div class="hero-inout">
+              <div class="hero-inout-item">
+                <div class="hero-inout-label">↑ Pemasukan</div>
+                <div class="hero-inout-val in" id="dash-in">–</div>
+              </div>
+              <div class="hero-inout-divider"></div>
+              <div class="hero-inout-item">
+                <div class="hero-inout-label">↓ Pengeluaran</div>
+                <div class="hero-inout-val out" id="dash-out">–</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-row" style="margin-top:22px;">
+            <span class="section-label">Rekap Pemasukan</span>
+          </div>
+          <div id="dash-in-rekap" class="in-rekap"></div>
+
+          <div class="section-row" style="margin-top:26px;">
+            <span class="section-label">Breakdown Pengeluaran</span>
+          </div>
+          <div id="dash-breakdown-matrix"></div>
+          <div class="util-chart-wrap">
+            <div id="util-chart"></div>
+          </div>
+
+          <div class="section-row" style="margin-top:26px;">
+            <span class="section-label">Rincian Pengeluaran</span>
+            <div class="cat-switch">
+              <button class="csw active" id="csw-cat" onclick="switchCatView('cat')">Kategori</button>
+              <button class="csw" id="csw-sub" onclick="switchCatView('sub')">Sub</button>
+            </div>
+          </div>
+          <div id="dash-cat-bars" class="cat-bars"></div>
+          
+          <button id="btn-expand-all" class="link-btn" style="width:100%;margin-top:12px;font-size:13px;display:none;text-align:center;" onclick="toggleExpandAll()">Buka Semua Rincian ↓</button>
+          <button id="btn-show-all-cat" class="mbtn sec" style="width:100%;margin-top:12px;font-size:12px;padding:8px;display:none;" onclick="toggleShowAllCat()">Lihat Semua</button>
+
+        </div>
+      </section>
+
+      <section id="page-input" class="page">
+        <div class="page-scroll">
+          <h2 class="page-title">Input Transaksi</h2>
+          <p class="page-sub">Ketik bebas, AI yang mengklasifikasikan</p>
+
+          <div class="input-tabs">
+            <button class="itab active" id="itab-ai" onclick="switchInputTab('ai')">✦ AI</button>
+            <button class="itab" id="itab-manual" onclick="switchInputTab('manual')">☰ Manual</button>
+          </div>
+
+          <div id="input-ai-section">
+            <div class="ai-card">
+              <textarea id="ai-text" class="ai-textarea"
+                placeholder="Contoh:&#10;• beli makan siang nasi padang 35rb&#10;• gaji bulan ini masuk 7,5 juta&#10;• bayar listrik PLN 150 ribu&#10;• investasi reksadana 500 ribu"></textarea>
+              <button class="btn-ai" id="btn-parse" onclick="parseWithAI()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                Proses dengan AI
+              </button>
+            </div>
+            <div id="ai-loading" class="loading-state hidden">
+              <div class="dots"><span></span><span></span><span></span></div>
+              <p>AI menganalisis transaksimu...</p>
+            </div>
+            <div id="ai-error" class="error-card hidden"></div>
+            <div id="ai-result" class="result-preview hidden"></div>
+          </div>
+
+          <div id="input-manual-section" class="hidden">
+            <div id="manual-form-wrap"></div>
+          </div>
+
+        </div>
+      </section>
+
+      <section id="page-history" class="page">
+        <div class="page-scroll">
+          <div class="search-bar">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" id="hist-search" placeholder="Cari transaksi..." oninput="loadHistory()" />
+          </div>
+          <div class="filter-bar">
+            <select id="hist-month-filter" class="filter-sel" onchange="loadHistory()"></select>
+            <select id="hist-type-filter" class="filter-sel" onchange="loadHistory()">
+              <option value="">Semua tipe</option>
+              <option value="out">Pengeluaran</option>
+              <option value="in">Pemasukan</option>
+            </select>
+            <select id="hist-urg-filter" class="filter-sel" onchange="loadHistory()">
+              <option value="">Semua urgensi</option>
+              <option value="Kebutuhan">Kebutuhan</option>
+              <option value="Keinginan">Keinginan</option>
+            </select>
+          </div>
+          <div id="hist-summary" class="hist-summary"></div>
+          <div id="history-list" class="trx-list"></div>
+          <div id="hist-empty" class="empty-state hidden">Tidak ada transaksi untuk filter ini.</div>
+        </div>
+      </section>
+
+      <section id="page-settings" class="page">
+        <div class="page-scroll">
+          <h2 class="page-title">Pengaturan</h2>
+
+          <div class="cfg-section">
+            <p class="cfg-label">Google Sheets</p>
+            <div class="cfg-card">
+              <div class="cfg-field"><label>Spreadsheet ID</label><input id="cfg-sheet-id" type="text" placeholder="Ambil dari URL Google Sheets kamu" /></div>
+              <div class="cfg-field"><label>Google API Key <span class="badge-opt">read</span></label><input id="cfg-google-key" type="password" placeholder="AIza..." /></div>
+              <div class="cfg-field"><label>Apps Script URL <span class="badge-opt">write</span></label><input id="cfg-script-url" type="text" placeholder="https://script.google.com/macros/s/..." /></div>
+            </div>
+          </div>
+
+          <div class="cfg-section">
+            <p class="cfg-label">AI — Gemini (gratis)</p>
+            <div class="cfg-card">
+              <div class="cfg-field"><label>Gemini API Key</label><input id="cfg-gemini-key" type="password" placeholder="AIza..." /></div>
+            </div>
+          </div>
+
+          <div class="cfg-section">
+            <p class="cfg-label">Nama Sheet</p>
+            <div class="cfg-card">
+              <div class="cfg-field"><label>Sheet Pemasukan</label><input id="cfg-sheet-in" type="text" placeholder="Pemasukan" /></div>
+              <div class="cfg-field"><label>Sheet Pengeluaran</label><input id="cfg-sheet-out" type="text" placeholder="Pengeluaran" /></div>
+            </div>
+          </div>
+
+          <button class="btn-save-cfg" onclick="saveSettings()">Simpan Pengaturan</button>
+          <div id="settings-msg" class="settings-msg hidden"></div>
+
+        </div>
+      </section>
+
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" data-page="dashboard" onclick="showPage('dashboard')">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        <span>Dashboard</span>
+      </button>
+      <button class="nav-btn" data-page="input" onclick="showPage('input')">
+        <div class="nav-plus">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </div>
+        <span>Input</span>
+      </button>
+      <button class="nav-btn" data-page="history" onclick="showPage('history')">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        <span>Riwayat</span>
+      </button>
+      <button class="nav-btn" data-page="settings" onclick="showPage('settings')">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Pengaturan</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div id="modal-content"></div>
+    </div>
+  </div>
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="./js/config.js"></script>
+  <script src="./js/sheets.js"></script>
+  <script src="./js/ai.js"></script>
+  <script src="./js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js').catch((err) => {
+          console.warn('Service worker gagal diregistrasi:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
