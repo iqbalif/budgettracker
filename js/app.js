@@ -328,7 +328,7 @@ async function refreshData() {
     // Jika user sedang membuka form input manual, refresh dropdown-nya
     if (currentPage === 'input' && !document.getElementById('input-manual-section').classList.contains('hidden')) {
       document.getElementById('manual-form-wrap').innerHTML = buildManualForm();
-      updateManualKat();
+      initManualForm();
     }
   } catch(e) {
     showToast('Gagal load: ' + e.message);
@@ -403,6 +403,60 @@ function loadDashboard() {
 
   // 3. Rincian Pengeluaran (Top Pengeluaran & Drill-down)
   renderTopBars(outs);
+}
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function parseNominalInputValue(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits ? parseInt(digits, 10) : 0;
+}
+
+function formatNominalInputValue(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  return digits ? Number(digits).toLocaleString('id-ID') : '';
+}
+
+function attachNominalFormatter(target) {
+  const el = typeof target === 'string' ? document.getElementById(target) : target;
+  if (!el || el.dataset.nominalFormatter === '1') return;
+
+  const syncValue = () => {
+    const raw = el.value;
+    const cursor = el.selectionStart ?? raw.length;
+    const digitsBeforeCursor = raw.slice(0, cursor).replace(/\D/g, '').length;
+    const formatted = formatNominalInputValue(raw);
+    el.value = formatted;
+
+    let nextCursor = formatted.length;
+    if (digitsBeforeCursor > 0) {
+      let digitCount = 0;
+      for (let i = 0; i < formatted.length; i += 1) {
+        if (/\d/.test(formatted[i])) digitCount += 1;
+        if (digitCount >= digitsBeforeCursor) {
+          nextCursor = i + 1;
+          break;
+        }
+      }
+    }
+
+    requestAnimationFrame(() => {
+      try {
+        el.setSelectionRange(nextCursor, nextCursor);
+      } catch (_) {}
+    });
+  };
+
+  el.addEventListener('input', syncValue);
+  el.dataset.nominalFormatter = '1';
+  el.value = formatNominalInputValue(el.value);
 }
 
 // ---- MATRIX & CHART DINAMIS ----
@@ -727,33 +781,46 @@ function openTrxModal(json) {
   ].filter(([,v]) => v);
 
   document.getElementById('modal-content').innerHTML = `
-    <h2 class="modal-title">${t.deskripsi}</h2>
+    <h2 class="modal-title">${escapeHtml(t.deskripsi || '(tanpa deskripsi)')}</h2>
     <div style="font-size:24px;font-weight:500;color:${isOut?'var(--out)':'var(--in)'};margin-bottom:18px;">${isOut?'−':'+'}${fmtRp(t.nominal)}</div>
-    <div style="margin-bottom:16px;">${rows.map(([k,v])=>`<div class="mdetail-row"><span class="mdetail-key">${k}</span><span class="mdetail-val">${v}</span></div>`).join('')}</div>
-    <div class="modal-actions">
-      <button class="mbtn sec" onclick='openEditModal(${JSON.stringify(JSON.stringify(t))})'>Edit</button>
-      <button class="mbtn del" onclick='confirmDelete(${JSON.stringify(JSON.stringify(t))})'>Hapus</button>
-      <button class="mbtn pri" onclick="closeModal()">Tutup</button>
+    <div style="margin-bottom:16px;">${rows.map(([k,v])=>`<div class="mdetail-row"><span class="mdetail-key">${escapeHtml(k)}</span><span class="mdetail-val">${escapeHtml(v)}</span></div>`).join('')}</div>
+    <div class="modal-icon-actions">
+      <button class="micon-btn edit" type="button" title="Edit" aria-label="Edit transaksi" onclick='openEditModal(${JSON.stringify(JSON.stringify(t))})'>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+      </button>
+      <button class="micon-btn dup" type="button" title="Duplikasi" aria-label="Duplikasi transaksi" onclick='openDuplicateModal(${JSON.stringify(JSON.stringify(t))})'>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      </button>
+      <button class="micon-btn del" type="button" title="Hapus" aria-label="Hapus transaksi" onclick='confirmDelete(${JSON.stringify(JSON.stringify(t))})'>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+      </button>
+      <button class="micon-btn close" type="button" title="Tutup" aria-label="Tutup modal" onclick="closeModal()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
     </div>`;
   openModal();
 }
 
 // ---- EDIT MODAL ----
 function openEditModal(json) {
-  const t   = JSON.parse(json);
+  const t = JSON.parse(json);
   const isOut = t.type === 'out';
-  const cats  = isOut ? CATS_OUT : CATS_IN;
+  const cats = isOut ? CATS_OUT : CATS_IN;
+  const catKeys = Object.keys(cats);
+  const activeKat = catKeys.includes(t.kategori) ? t.kategori : (catKeys[0] || '');
+  const subs = cats[activeKat] || [];
+  const activeSub = subs.includes(t.sub_kategori) ? t.sub_kategori : (subs[0] || '');
 
   document.getElementById('modal-content').innerHTML = `
     <h2 class="modal-title">Edit Transaksi</h2>
-    <div class="modal-field"><label>Deskripsi</label><input id="e-desc" value="${t.deskripsi}" /></div>
-    <div class="modal-field"><label>Nominal (Rp)</label><input id="e-nominal" type="number" value="${t.nominal}" /></div>
+    <div class="modal-field"><label>Deskripsi</label><input id="e-desc" value="${escapeHtml(t.deskripsi || '')}" /></div>
+    <div class="modal-field"><label>Nominal (Rp)</label><input id="e-nominal" type="text" inputmode="numeric" value="${formatNominalInputValue(t.nominal)}" style="text-align:right" /></div>
     <div class="modal-field"><label>Tanggal</label><input id="e-tgl" type="date" value="${t.tanggal}" /></div>
     <div class="modal-field"><label>Kategori</label>
-      <select id="e-kat" onchange="editUpdateSub(${isOut})">${Object.keys(cats).map(c=>`<option ${t.kategori===c?'selected':''}>${c}</option>`).join('')}</select>
+      <select id="e-kat" onchange="editUpdateSub(${isOut})">${catKeys.map(c=>`<option value="${escapeHtml(c)}" ${activeKat===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select>
     </div>
     <div class="modal-field"><label>Sub Kategori</label>
-      <select id="e-sub">${(cats[t.kategori]||[]).map(s=>`<option ${t.sub_kategori===s?'selected':''}>${s}</option>`).join('')}</select>
+      <select id="e-sub">${subs.map(s=>`<option value="${escapeHtml(s)}" ${activeSub===s?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select>
     </div>
     ${isOut ? `
     <div class="modal-field"><label>Urgensi</label>
@@ -766,12 +833,49 @@ function openEditModal(json) {
       <button class="mbtn sec" onclick='openTrxModal(${JSON.stringify(JSON.stringify(t))})'>Batal</button>
       <button class="mbtn pri" onclick='doEdit(${JSON.stringify(JSON.stringify(t))})'>Simpan</button>
     </div>`;
+  attachNominalFormatter('e-nominal');
+  openModal();
+}
+
+function openDuplicateModal(json) {
+  const t = JSON.parse(json);
+  const isOut = t.type === 'out';
+  const cats = isOut ? CATS_OUT : CATS_IN;
+  const catKeys = Object.keys(cats);
+  const activeKat = catKeys.includes(t.kategori) ? t.kategori : (catKeys[0] || '');
+  const subs = cats[activeKat] || [];
+  const activeSub = subs.includes(t.sub_kategori) ? t.sub_kategori : (subs[0] || '');
+
+  document.getElementById('modal-content').innerHTML = `
+    <h2 class="modal-title">Duplikasi Transaksi</h2>
+    <div class="modal-field"><label>Deskripsi</label><input id="e-desc" value="${escapeHtml(t.deskripsi || '')}" /></div>
+    <div class="modal-field"><label>Nominal (Rp)</label><input id="e-nominal" type="text" inputmode="numeric" value="${formatNominalInputValue(t.nominal)}" style="text-align:right" /></div>
+    <div class="modal-field"><label>Tanggal</label><input id="e-tgl" type="date" value="${todayISO()}" /></div>
+    <div class="modal-field"><label>Kategori</label>
+      <select id="e-kat" onchange="editUpdateSub(${isOut})">${catKeys.map(c=>`<option value="${escapeHtml(c)}" ${activeKat===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select>
+    </div>
+    <div class="modal-field"><label>Sub Kategori</label>
+      <select id="e-sub">${subs.map(s=>`<option value="${escapeHtml(s)}" ${activeSub===s?'selected':''}>${escapeHtml(s)}</option>`).join('')}</select>
+    </div>
+    ${isOut ? `
+    <div class="modal-field"><label>Urgensi</label>
+      <select id="e-urg"><option ${t.urgensi==='Kebutuhan'?'selected':''}>Kebutuhan</option><option ${t.urgensi==='Keinginan'?'selected':''}>Keinginan</option></select>
+    </div>
+    <div class="modal-field"><label>Utilitas</label>
+      <select id="e-util"><option ${t.utilitas==='Consumptive'?'selected':''}>Consumptive</option><option ${t.utilitas==='Productive'?'selected':''}>Productive</option></select>
+    </div>` : ''}
+    <div class="modal-actions">
+      <button class="mbtn sec" onclick='openTrxModal(${JSON.stringify(JSON.stringify(t))})'>Batal</button>
+      <button class="mbtn pri" onclick='doDuplicate(${JSON.stringify(JSON.stringify(t))})'>Simpan Baru</button>
+    </div>`;
+  attachNominalFormatter('e-nominal');
+  openModal();
 }
 
 function editUpdateSub(isOut) {
   const kat  = document.getElementById('e-kat').value;
   const cats = isOut ? CATS_OUT : CATS_IN;
-  document.getElementById('e-sub').innerHTML = (cats[kat]||[]).map(s=>`<option>${s}</option>`).join('');
+  document.getElementById('e-sub').innerHTML = (cats[kat]||[]).map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
 }
 
 async function doEdit(json) {
@@ -779,19 +883,62 @@ async function doEdit(json) {
   const isOut = orig.type === 'out';
   const updated = {
     ...orig,
-    deskripsi:    document.getElementById('e-desc').value,
-    nominal:      parseFloat(document.getElementById('e-nominal').value)||0,
+    deskripsi:    document.getElementById('e-desc').value.trim() || '(tanpa deskripsi)',
+    nominal:      parseNominalInputValue(document.getElementById('e-nominal').value),
     tanggal:      document.getElementById('e-tgl').value,
     kategori:     document.getElementById('e-kat').value,
     sub_kategori: document.getElementById('e-sub').value,
     ...(isOut ? { urgensi: document.getElementById('e-urg').value, utilitas: document.getElementById('e-util').value } : {})
   };
-  closeModal();
+  if (!updated.nominal) { showToast('Isi nominal dulu'); return; }
+  if (!updated.tanggal) { showToast('Isi tanggal dulu'); return; }
+
+  // Indikator Loading Nyala
+  const btn = document.querySelector('.modal-actions .mbtn.pri');
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+
   try {
     await Sheets.updateTransaction(updated);
+    closeModal(); // Modal baru ditutup SETELAH berhasil simpan
     showToast('Transaksi diperbarui ✓');
     await refreshData();
-  } catch(e) { showToast('Gagal update: ' + e.message); }
+  } catch(e) { 
+    showToast('Gagal update: ' + e.message); 
+    if (btn) { btn.disabled = false; btn.textContent = 'Simpan'; }
+  }
+}
+
+async function doDuplicate(json) {
+  const orig = JSON.parse(json);
+  const isOut = orig.type === 'out';
+  const duplicated = {
+    type:         orig.type,
+    deskripsi:    document.getElementById('e-desc').value.trim() || '(tanpa deskripsi)',
+    nominal:      parseNominalInputValue(document.getElementById('e-nominal').value),
+    tanggal:      document.getElementById('e-tgl').value || todayISO(),
+    kategori:     document.getElementById('e-kat').value,
+    sub_kategori: document.getElementById('e-sub').value,
+    ...(isOut ? {
+      urgensi:  document.getElementById('e-urg').value,
+      utilitas: document.getElementById('e-util').value,
+    } : { urgensi: '', utilitas: '' })
+  };
+  if (!duplicated.nominal) { showToast('Isi nominal dulu'); return; }
+  if (!duplicated.tanggal) { showToast('Isi tanggal dulu'); return; }
+
+  // Indikator Loading Nyala
+  const btn = document.querySelector('.modal-actions .mbtn.pri');
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+
+  try {
+    await Sheets.addTransaction(duplicated);
+    closeModal(); // Modal baru ditutup SETELAH berhasil simpan
+    showToast('Transaksi diduplikasi ✓');
+    await refreshData();
+  } catch (e) {
+    showToast('Gagal duplikasi: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Simpan Baru'; }
+  }
 }
 
 // ---- DELETE ----
@@ -854,19 +1001,23 @@ async function parseWithAI() {
 
 function showAIResult(t, el) {
   const isOut = t.type === 'out';
-  const catOpts = (cats) => Object.keys(cats).map(c=>`<option ${t.kategori===c?'selected':''}>${c}</option>`).join('');
-  const subOpts = (cats, kat) => (cats[kat]||[]).map(s=>`<option ${t.sub_kategori===s?'selected':''}>${s}</option>`).join('');
   const cats = isOut ? CATS_OUT : CATS_IN;
+  const catKeys = Object.keys(cats);
+  const activeKat = catKeys.includes(t.kategori) ? t.kategori : (catKeys[0] || '');
+  const subs = cats[activeKat] || [];
+  const activeSub = subs.includes(t.sub_kategori) ? t.sub_kategori : (subs[0] || '');
+  const catOpts = catKeys.map(c=>`<option value="${escapeHtml(c)}" ${activeKat===c?'selected':''}>${escapeHtml(c)}</option>`).join('');
+  const subOpts = subs.map(s=>`<option value="${escapeHtml(s)}" ${activeSub===s?'selected':''}>${escapeHtml(s)}</option>`).join('');
 
   el.innerHTML = `
     <div class="rp-head">
       <div style="flex:1">
         <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Deskripsi</div>
-        <input class="rp-edit-input" id="pre-desc" value="${t.deskripsi}" />
+        <input class="rp-edit-input" id="pre-desc" value="${escapeHtml(t.deskripsi || '')}" />
       </div>
       <div style="text-align:right;flex-shrink:0">
         <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Nominal</div>
-        <input class="rp-edit-input" id="pre-nominal" type="number" value="${t.nominal}" style="text-align:right;width:120px" />
+        <input class="rp-edit-input" id="pre-nominal" type="text" inputmode="numeric" value="${formatNominalInputValue(t.nominal)}" style="text-align:right;width:120px" />
       </div>
     </div>
     <div class="rp-fields">
@@ -875,10 +1026,10 @@ function showAIResult(t, el) {
         <input class="rp-edit-input" id="pre-tgl" type="date" value="${t.tanggal}" style="width:auto;font-size:13px" />
       </div>
       <div class="rp-row"><span class="rp-key">Kategori</span>
-        <select class="rp-edit-sel" id="pre-kat" onchange="previewUpdateSub(${isOut})">${catOpts(cats)}</select>
+        <select class="rp-edit-sel" id="pre-kat" onchange="previewUpdateSub(${isOut})">${catOpts}</select>
       </div>
       <div class="rp-row"><span class="rp-key">Sub Kategori</span>
-        <select class="rp-edit-sel" id="pre-sub">${subOpts(cats, t.kategori)}</select>
+        <select class="rp-edit-sel" id="pre-sub">${subOpts}</select>
       </div>
       ${isOut ? `
       <div class="rp-row"><span class="rp-key">Urgensi</span>
@@ -898,13 +1049,14 @@ function showAIResult(t, el) {
       <button class="btn-save" onclick="saveAI()">Simpan</button>
       <button class="btn-cancel" onclick="cancelAI()">Batal</button>
     </div>`;
+  attachNominalFormatter('pre-nominal');
   el.classList.remove('hidden');
 }
 
 function previewUpdateSub(isOut) {
   const cats = isOut ? CATS_OUT : CATS_IN;
   const kat  = document.getElementById('pre-kat').value;
-  document.getElementById('pre-sub').innerHTML = (cats[kat]||[]).map(s=>`<option>${s}</option>`).join('');
+  document.getElementById('pre-sub').innerHTML = (cats[kat]||[]).map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
 }
 
 async function saveAI() {
@@ -913,7 +1065,7 @@ async function saveAI() {
   const finalTrx = {
     ...pendingTrx,
     deskripsi:    document.getElementById('pre-desc')?.value    || pendingTrx.deskripsi,
-    nominal:      parseFloat(document.getElementById('pre-nominal')?.value) || pendingTrx.nominal,
+    nominal:      parseNominalInputValue(document.getElementById('pre-nominal')?.value) || pendingTrx.nominal,
     tanggal:      document.getElementById('pre-tgl')?.value     || pendingTrx.tanggal,
     kategori:     document.getElementById('pre-kat')?.value     || pendingTrx.kategori,
     sub_kategori: document.getElementById('pre-sub')?.value     || pendingTrx.sub_kategori,
@@ -922,6 +1074,11 @@ async function saveAI() {
       utilitas: document.getElementById('pre-util')?.value || pendingTrx.utilitas,
     } : {})
   };
+
+  // Indikator Loading Nyala
+  const btn = document.querySelector('#ai-result .btn-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+
   try {
     await Sheets.addTransaction(finalTrx);
     pendingTrx = null;
@@ -929,7 +1086,11 @@ async function saveAI() {
     document.getElementById('ai-result').classList.add('hidden');
     showToast('Transaksi tersimpan ✓');
     await refreshData();
-  } catch(e) { showToast('Gagal simpan: ' + e.message); }
+  } catch(e) { 
+    showToast('Gagal simpan: ' + e.message); 
+    // Kembalikan tombol jika gagal
+    if (btn) { btn.disabled = false; btn.textContent = 'Simpan'; }
+  }
 }
 
 function cancelAI() {
@@ -940,9 +1101,10 @@ function cancelAI() {
 // ---- MANUAL FORM ----
 function initManualForm() {
   const wrap = document.getElementById('manual-form-wrap');
-  if (wrap.innerHTML) return; 
-  wrap.innerHTML = buildManualForm();
-  updateManualKat();
+  if (!wrap) return;
+  if (!wrap.innerHTML) wrap.innerHTML = buildManualForm();
+  attachNominalFormatter('m-nominal');
+  setManualType(manualType);
 }
 
 function buildManualForm() {
@@ -953,7 +1115,7 @@ function buildManualForm() {
         <button class="tipe-btn" id="m-btn-in" onclick="setManualType('in')">↑ Pemasukan</button>
       </div>
       <div class="mf-field"><label>Deskripsi</label><input id="m-desc" placeholder="Makan siang, bayar listrik, gaji, dll" /></div>
-      <div class="mf-field"><label>Nominal (Rp)</label><input id="m-nominal" type="number" inputmode="numeric" placeholder="50000" /></div>
+      <div class="mf-field"><label>Nominal (Rp)</label><input id="m-nominal" type="text" inputmode="numeric" placeholder="50.000" style="text-align:right" /></div>
       <div class="mf-field"><label>Tanggal</label><input id="m-tgl" type="date" value="${todayISO()}" /></div>
       <div class="mf-field"><label>Kategori</label><select id="m-kat" onchange="updateManualKat()"></select></div>
       <div class="mf-field"><label>Sub Kategori</label><select id="m-sub"></select></div>
@@ -975,17 +1137,34 @@ function setManualType(type) {
   document.getElementById('m-btn-out').className = 'tipe-btn' + (isOut ? ' active-out' : '');
   document.getElementById('m-btn-in').className  = 'tipe-btn' + (!isOut ? ' active-in' : '');
   document.getElementById('m-out-extras').style.display = isOut ? '' : 'none';
-  const cats = isOut ? CATS_OUT : CATS_IN;
-  document.getElementById('m-kat').innerHTML = Object.keys(cats).map(c=>`<option>${c}</option>`).join('');
   updateManualKat();
 }
 
 function updateManualKat() {
-  const cats = manualType === 'out' ? CATS_OUT : CATS_IN;
-  const kat  = document.getElementById('m-kat')?.value || Object.keys(cats)[0];
-  const subs = cats[kat] || [];
+  const katEl = document.getElementById('m-kat');
   const subEl = document.getElementById('m-sub');
-  if (subEl) subEl.innerHTML = subs.map(s=>`<option>${s}</option>`).join('');
+  if (!katEl || !subEl) return;
+
+  const cats = manualType === 'out' ? CATS_OUT : CATS_IN;
+  const catKeys = Object.keys(cats);
+  const prevKat = katEl.value;
+
+  if (!catKeys.length) {
+    katEl.innerHTML = '';
+    subEl.innerHTML = '';
+    return;
+  }
+
+  katEl.innerHTML = catKeys.map(c => `<option value="${escapeHtml(c)}" ${prevKat === c ? 'selected' : ''}>${escapeHtml(c)}</option>`).join('');
+  const activeKat = catKeys.includes(prevKat) ? prevKat : catKeys[0];
+  katEl.value = activeKat;
+
+  const prevSub = subEl.value;
+  const subs = cats[activeKat] || [];
+  subEl.innerHTML = subs.map(s => `<option value="${escapeHtml(s)}" ${prevSub === s ? 'selected' : ''}>${escapeHtml(s)}</option>`).join('');
+  if (subs.length) {
+    subEl.value = subs.includes(prevSub) ? prevSub : subs[0];
+  }
 }
 
 async function saveManual() {
@@ -993,7 +1172,7 @@ async function saveManual() {
   const trx = {
     type:         manualType,
     deskripsi:    document.getElementById('m-desc').value.trim() || '(tanpa deskripsi)',
-    nominal:      parseFloat(document.getElementById('m-nominal').value) || 0,
+    nominal:      parseNominalInputValue(document.getElementById('m-nominal').value),
     tanggal:      document.getElementById('m-tgl').value,
     kategori:     document.getElementById('m-kat').value,
     sub_kategori: document.getElementById('m-sub').value,
@@ -1004,6 +1183,11 @@ async function saveManual() {
   };
   if (!trx.nominal) { showToast('Isi nominal dulu'); return; }
   if (!trx.tanggal) { showToast('Isi tanggal dulu'); return; }
+
+  // Indikator Loading Nyala
+  const btn = document.querySelector('.manual-form .btn-save');
+  if (btn) { btn.disabled = true; btn.textContent = 'Menyimpan...'; }
+
   try {
     await Sheets.addTransaction(trx);
     showToast('Tersimpan ✓');
@@ -1011,7 +1195,12 @@ async function saveManual() {
     document.getElementById('m-nominal').value = '';
     document.getElementById('m-tgl').value    = todayISO();
     await refreshData();
-  } catch(e) { showToast('Gagal: ' + e.message); }
+  } catch(e) { 
+    showToast('Gagal: ' + e.message); 
+  } finally {
+    // Indikator Loading Mati
+    if (btn) { btn.disabled = false; btn.textContent = 'Simpan Transaksi'; }
+  }
 }
 
 // ---- SETTINGS ----
