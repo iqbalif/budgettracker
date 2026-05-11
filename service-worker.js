@@ -1,83 +1,165 @@
-const CACHE_VERSION = "budget-tracker-v2";
-const ENTRY_FALLBACK = "./index.html";
-const APP_SHELL_ASSETS = [
-  "./",
-  ENTRY_FALLBACK,
-  "./manifest.json",
-  "./css/style.css",
-  "./js/config.js",
-  "./js/sheets.js",
-  "./js/ai.js",
-  "./js/app.js",
-  "./assets/icons/favicon.svg",
-  "./assets/icons/favicon-16x16.png",
-  "./assets/icons/favicon-32x32.png",
-  "./assets/icons/favicon.ico",
-  "./assets/icons/apple-touch-icon.png",
-  "./assets/icons/icon-192.png",
-  "./assets/icons/icon-512.png",
-  "./assets/icons/icon-maskable-192.png",
-  "./assets/icons/icon-maskable-512.png"
+/* ============================================
+ * Budget Tracker Service Worker
+ * ============================================
+ * GANTI VERSI DI SINI saat rilis update baru:
+ * contoh: 'budget-tracker-v2' -> 'budget-tracker-v3'
+ */
+const CACHE_NAME = 'budget-tracker-v3';
+
+// Daftar asset inti yang harus di-precache
+const CORE_ASSETS = [
+  '/',
+  '/index.html',
+  '/css/style.css',
+  '/js/app.js',
+  '/js/sheets.js',
+  '/js/ai.js',
+  '/js/config.js',
+  '/manifest.json',
+
+  // Icon set
+  '/assets/icons/favicon.svg',
+  '/assets/icons/favicon.ico',
+  '/assets/icons/favicon-16x16.png',
+  '/assets/icons/favicon-32x32.png',
+  '/assets/icons/apple-touch-icon.png',
+  '/assets/icons/icon-192.png',
+  '/assets/icons/icon-512.png',
+  '/assets/icons/icon-maskable-192.png',
+  '/assets/icons/icon-maskable-512.png'
 ];
 
-self.addEventListener("install", (event) => {
+/* =========================
+ * INSTALL: pre-cache asset
+ * ========================= */
+self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL_ASSETS))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(CORE_ASSETS))
   );
+  // Aktifkan SW baru secepat mungkin
   self.skipWaiting();
 });
 
-self.addEventListener("activate", (event) => {
+/* ============================================
+ * ACTIVATE: hapus cache lama (cache busting)
+ * ============================================ */
+self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
+    caches.keys().then((cacheKeys) =>
       Promise.all(
-        keys
-          .filter((key) => key !== CACHE_VERSION)
-          .map((key) => caches.delete(key))
+        cacheKeys.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+          return Promise.resolve();
+        })
       )
     )
   );
+  // Ambil kontrol semua tab/client tanpa menunggu reload manual
   self.clients.claim();
 });
 
-self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+/* ============================================
+ * FETCH STRATEGY
+ * - Navigasi HTML: Network First -> fallback cache
+ * - JS/CSS/Image/Icon/Manifest: Stale-While-Revalidate
+ * ============================================ */
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
 
-  const requestUrl = new URL(event.request.url);
-  if (requestUrl.origin !== self.location.origin) return;
+  // Hanya handle GET
+  if (req.method !== 'GET') return;
 
-  if (event.request.mode === "navigate") {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone();
-          caches.open(CACHE_VERSION).then((cache) => {
-            cache.put(ENTRY_FALLBACK, responseClone);
-          });
-          return response;
-        })
-        .catch(async () => {
-          const cachedPage = await caches.match(event.request);
-          if (cachedPage) return cachedPage;
-          return caches.match(ENTRY_FALLBACK);
-        })
-    );
+  const url = new URL(req.url);
+
+  // Hanya cache request dari origin sendiri
+  if (url.origin !== self.location.origin) return;
+
+  // 1) Halaman / navigasi: selalu coba network dulu
+  if (req.mode === 'navigate') {
+    event.respondWith(networkFirst(req));
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) return cachedResponse;
+  // 2) Asset statis: cepat dari cache, update di background
+  if (
+    req.destination === 'script' ||
+    req.destination === 'style' ||
+    req.destination === 'image' ||
+    req.destination === 'font' ||
+    req.destination === 'manifest' ||
+    req.destination === 'worker'
+  ) {
+    event.respondWith(staleWhileRevalidate(req));
+    return;
+  }
 
-      return fetch(event.request).then((networkResponse) => {
-        if (networkResponse && networkResponse.status === 200) {
-          const networkClone = networkResponse.clone();
-          caches.open(CACHE_VERSION).then((cache) => {
-            cache.put(event.request, networkClone);
-          });
-        }
-        return networkResponse;
-      });
-    })
-  );
+  // 3) Fallback default: network first
+  event.respondWith(networkFirst(req));
 });
+
+/* =========================
+ * Helper: Network First
+ * ========================= */
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  try {
+    const fresh = await fetch(request);
+
+    // Simpan response valid ke cache
+    if (fresh && fresh.status === 200) {
+      cache.put(request, fresh.clone());
+    }
+
+    return fresh;
+  } catch (err) {
+    // Fallback ke cache request yang sama
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    // Untuk navigasi, fallback ke index.html agar SPA tetap jalan offline
+    if (request.mode === 'navigate') {
+      const appShell = await cache.match('/index.html');
+      if (appShell) return appShell;
+    }
+
+    throw err;
+  }
+}
+
+/* =================================
+ * Helper: Stale-While-Revalidate
+ * ================================= */
+async function staleWhileRevalidate(request) {
+  const cache = await caches.open(CACHE_NAME);
+  const cached = await cache.match(request);
+
+  const networkFetch = fetch(request)
+    .then((response) => {
+      if (response && response.status === 200) {
+        cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  // Jika ada cache, langsung pakai cache (cepat), sambil update di belakang
+  if (cached) {
+    eventSafeWait(networkFetch);
+    return cached;
+  }
+
+  // Jika belum ada cache, tunggu network
+  const fresh = await networkFetch;
+  if (fresh) return fresh;
+
+  // Fallback terakhir
+  return caches.match('/index.html');
+}
+
+/* Utility supaya background update tidak meledak error */
+function eventSafeWait(promise) {
+  promise.catch(() => {});
+}
