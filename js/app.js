@@ -477,7 +477,7 @@ function renderInRekap(ins) {
         <span class="ir-kat">${kat}</span>
         <span class="ir-val in">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
       </div>
-      <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/mx*100)}%;background:var(--in)"></div></div>
+      <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/totalIn*100)}%;background:var(--in)"></div></div>
       ${inShowSubs ? `<div class="ir-subs">${subRows}</div>` : ''}
     </div>`;
   }).join('');
