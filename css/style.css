@@ -460,21 +460,30 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
   }
 }
 
-/* ---- DESKTOP OPTIMIZATIONS ---- */
+/* ---- DESKTOP & TABLET OPTIMIZATIONS ---- */
 .dash-grid-2col {
   display: flex;
   flex-direction: column;
 }
 
+/* Tablet / iPad Portrait (768px ke atas) */
 @media (min-width: 768px) {
-  /* Perbesar font di Hero Card Desktop */
+  /* Perbesar font di Hero Card */
   .hero-inout-val { font-size: 36px; letter-spacing: -1px; }
   .hero-inout-label { font-size: 13px; margin-bottom: 6px; }
   .hero-mom { font-size: 13px; margin-top: 8px; }
   .hero-spending-rate { font-size: 14px; margin-top: 14px; }
   .hero-sub-info { font-size: 13px; padding-top: 12px; margin-top: 14px; }
+  
+  /* Cegah tombol tumpah/meluber ke samping jika layar sempit */
+  .section-row {
+    flex-wrap: wrap; 
+  }
+}
 
-  /* Bikin layout jadi Grid 2x2 (Kiri Kanan) */
+/* Layar Lebar: Laptop / PC / iPad Landscape (1024px ke atas) */
+@media (min-width: 1024px) {
+  /* Baru aktifkan mode belah dua (Grid) */
   .dash-grid-2col {
     display: grid;
     grid-template-columns: 1fr 1fr;

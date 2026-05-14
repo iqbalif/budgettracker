@@ -223,21 +223,34 @@ function updateHeroSub(mon, totalOut) {
   const el = document.getElementById('dash-hero-sub');
   if (!el) return;
 
-  const currentMon = todayISO().slice(0, 7);
-  if (mon !== currentMon) {
+  // Jika filter "Semua Bulan" dipilih, sembunyikan info ini
+  if (mon === 'all' || !mon) {
     el.style.display = 'none';
     el.textContent = '';
     return;
   }
 
   const today = new Date();
-  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const dayOfMonth = today.getDate();
-  const daysLeft = lastDay - dayOfMonth;
-  const dailyAvg = dayOfMonth ? totalOut / dayOfMonth : 0;
+  const currentMon = todayISO().slice(0, 7); 
+  const [year, month] = mon.split('-').map(Number);
+  
+  // Menghitung total hari pada bulan yang dipilih (misal: 31 untuk Mei, 30 untuk April)
+  const totalDaysInMonth = new Date(year, month, 0).getDate(); 
 
   el.style.display = 'block';
-  el.textContent = `H-${daysLeft} menuju akhir bulan · Rata-rata harian: ${fmtRp(dailyAvg)}`;
+
+  if (mon === currentMon) {
+    // Jika bulan berjalan, hitung berdasarkan tanggal hari ini
+    const dayOfMonth = today.getDate();
+    const daysLeft = totalDaysInMonth - dayOfMonth;
+    const dailyAvg = dayOfMonth ? totalOut / dayOfMonth : 0;
+    // Menggunakan innerHTML dan tag <br> untuk baris baru
+    el.innerHTML = `H-${daysLeft} menuju akhir bulan <br> Rata-rata pengeluaran harian: ${fmtRp(dailyAvg)}`;
+  } else {
+    // Jika bulan lain (sejarah), hitung berdasarkan total hari di bulan tersebut
+    const dailyAvg = totalOut / totalDaysInMonth;
+    el.innerHTML = `Rata-rata pengeluaran harian: ${fmtRp(dailyAvg)}`;
+  }
 }
 
 function renderTop3Transactions(outs) {
