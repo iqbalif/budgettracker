@@ -375,15 +375,15 @@ function renderMatrix(conNeed, conWant, proNeed, proWant) {
   if (hasCon) {
     html += `<div class="matrix-row">
       <div class="matrix-row-hdr">Consumptive</div>
-      <div class="matrix-cell mc-nk">${fmtRp(conNeed)}</div>
-      <div class="matrix-cell mc-wk">${fmtRp(conWant)}</div>
+      <div class="matrix-cell mc-nk" onclick="jumpToMatrixHistory('Kebutuhan', 'Consumptive')" style="cursor:pointer;" title="Lihat Riwayat">${fmtRp(conNeed)}</div>
+      <div class="matrix-cell mc-wk" onclick="jumpToMatrixHistory('Keinginan', 'Consumptive')" style="cursor:pointer;" title="Lihat Riwayat">${fmtRp(conWant)}</div>
     </div>`;
   }
   if (hasPro) {
     html += `<div class="matrix-row">
       <div class="matrix-row-hdr">Productive</div>
-      <div class="matrix-cell mc-np">${fmtRp(proNeed)}</div>
-      <div class="matrix-cell mc-wp">${fmtRp(proWant)}</div>
+      <div class="matrix-cell mc-np" onclick="jumpToMatrixHistory('Kebutuhan', 'Productive')" style="cursor:pointer;" title="Lihat Riwayat">${fmtRp(proNeed)}</div>
+      <div class="matrix-cell mc-wp" onclick="jumpToMatrixHistory('Keinginan', 'Productive')" style="cursor:pointer;" title="Lihat Riwayat">${fmtRp(proWant)}</div>
     </div>`;
   }
   html += `</div>`;
@@ -762,12 +762,13 @@ function getFilteredHistoryTrx() {
   const mon    = selMonth('hist-month-filter');
   const type   = document.getElementById('hist-type-filter')?.value || '';
   const urg    = document.getElementById('hist-urg-filter')?.value  || '';
+  const util   = document.getElementById('hist-util-filter')?.value || ''; // Tambahan baru
   const search = (document.getElementById('hist-search')?.value || '').toLowerCase().trim();
 
   let trx = (mon === 'all') ? allTrx : allTrx.filter(t => monthKey(t.tanggal) === mon);
   if (type)   trx = trx.filter(t => t.type === type);
   if (urg)    trx = trx.filter(t => t.urgensi === urg);
-  // PERBAIKAN: Filter mengecek Kategori ATAU Sub Kategori
+  if (util)   trx = trx.filter(t => t.utilitas === util); // Tambahan baru
   if (histCatFilter) trx = trx.filter(t => t.kategori === histCatFilter || t.sub_kategori === histCatFilter);
   if (search) trx = trx.filter(t =>
     (t.deskripsi + t.kategori + t.sub_kategori).toLowerCase().includes(search)
@@ -775,9 +776,49 @@ function getFilteredHistoryTrx() {
   return trx;
 }
 
+function jumpToMatrixHistory(urgensi, utilitas) {
+  // Samakan bulan
+  const mon = selMonth('dash-month-filter');
+  document.getElementById('hist-month-filter').value = mon;
+  
+  // Reset filter kategori supaya tidak tabrakan
+  histCatFilter = ''; 
+  
+  // Set filter dropdown
+  document.getElementById('hist-type-filter').value = 'out'; // Pastikan Pengeluaran
+  document.getElementById('hist-urg-filter').value = urgensi;
+  document.getElementById('hist-util-filter').value = utilitas;
+  
+  // Pindah halaman
+  showPage('history');
+}
+
 // ---- HISTORY ----
 function loadHistory() {
   const trx = getFilteredHistoryTrx();
+
+  // --- LOGIKA BARU: STATEFUL COLORING ---
+  const currentMonth = todayISO().slice(0, 7);
+  const filterIds = [
+    { id: 'hist-month-filter', default: currentMonth },
+    { id: 'hist-type-filter',  default: '' },
+    { id: 'hist-urg-filter',   default: '' },
+    { id: 'hist-util-filter',  default: '' }
+  ];
+
+  filterIds.forEach(f => {
+    const el = document.getElementById(f.id);
+    if (el) {
+      // Jika nilai tidak sama dengan default, beri class 'active'
+      if (el.value !== f.default && el.value !== 'all') {
+        el.classList.add('active');
+      } else {
+        el.classList.remove('active');
+      }
+    }
+  });
+  // ---------------------------------------
+
   const chipEl = document.getElementById('hist-cat-chip');
   if (chipEl) {
     chipEl.innerHTML = histCatFilter
@@ -803,8 +844,6 @@ function loadHistory() {
   }
 
   emptyEl.classList.add('hidden');
-
-  // Group by tanggal
   const groups = {};
   trx.forEach(t => {
     const key = t.tanggal || 'unknown';

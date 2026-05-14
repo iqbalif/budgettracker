@@ -287,7 +287,33 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 /* ---- HISTORY FILTER ---- */
 .filter-bar{display:flex;gap:7px;margin-bottom:12px;flex-wrap:wrap;}
 .filter-sel{flex:1;min-width:0;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r-sm);background:var(--bg-card);font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text);outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236B5E4A' stroke-width='1.5' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center;padding-right:26px;}
-.filter-btn-export{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid var(--border2);border-radius:var(--r-sm);background:var(--bg-card);font-family:'DM Sans',sans-serif;font-size:12px;color:var(--text-2);cursor:pointer;}
+/* Update Tombol CSV (Action Highlight) */
+.filter-btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent); /* Warna senada accent */
+  border-radius: var(--r-sm);
+  background: var(--accent);       /* Warna cokelat pekat */
+  color: #FFFFFF;                  /* Teks putih agar kontras */
+  font-family: 'DM Sans', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.filter-btn-export:active { transform: scale(0.96); }
+
+/* Warna khusus jika filter sedang AKTIF (Stateful Coloring) */
+.filter-sel.active {
+  background-color: #EFE5D7;       /* Krem sedikit lebih gelap */
+  border-color: var(--accent);     /* Border lebih tegas */
+  color: var(--text);
+  font-weight: 600;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%232C2416' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");
+}
 .hist-summary{background:var(--bg-soft);border-radius:var(--r-md);padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-around;}
 .hs-item{text-align:center;}
 .hs-label{font-size:10px;color:var(--text-3);text-transform:uppercase;letter-spacing:.04em;}
@@ -494,5 +520,42 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
   }
   .dash-grid-2col .section-row {
     margin-top: 10px !important;
+  }
+}
+
+/* Efek saat sel matrix diklik */
+.matrix-cell { transition: opacity 0.15s ease; }
+.matrix-cell:active { opacity: 0.5; }
+@media (hover: hover) {
+  .matrix-cell:hover { opacity: 0.8; }
+}
+
+/* ---- PERBAIKAN FILTER MOBILE & DESKTOP ---- */
+.filter-bar {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Membelah jadi 2 kolom di HP */
+  gap: 8px;
+}
+.filter-sel {
+  width: 100%; /* Memaksa dropdown memenuhi porsi kolomnya */
+}
+.filter-btn-export {
+  grid-column: span 2; /* Tombol CSV membentang penuh di bawah */
+  justify-content: center;
+}
+
+/* Mengembalikan ke 1 baris lurus jika layarnya lebar (Desktop/Tablet) */
+@media (min-width: 768px) {
+  .filter-bar {
+    display: flex;
+    flex-wrap: nowrap;
+  }
+  .filter-sel {
+    flex: 1;
+    width: auto;
+  }
+  .filter-btn-export {
+    grid-column: auto;
+    width: auto;
   }
 }
