@@ -652,8 +652,22 @@ function toggleShowAllCat() {
 }
 
 function jumpToHistory(kat) {
+  // Samakan bulan
   const mon = selMonth('dash-month-filter');
   document.getElementById('hist-month-filter').value = mon;
+
+  // -- SAPU BERSIH SEMUA FILTER LAIN --
+  const typeFilter = document.getElementById('hist-type-filter');
+  const urgFilter = document.getElementById('hist-urg-filter');
+  const utilFilter = document.getElementById('hist-util-filter');
+  const searchEl = document.getElementById('hist-search');
+  
+  if (typeFilter) typeFilter.value = '';
+  if (urgFilter) urgFilter.value = '';
+  if (utilFilter) utilFilter.value = '';
+  if (searchEl) searchEl.value = '';
+
+  // Set filter kategori sesuai yang diklik
   histCatFilter = kat;
   showPage('history');
 }
@@ -781,10 +795,12 @@ function jumpToMatrixHistory(urgensi, utilitas) {
   const mon = selMonth('dash-month-filter');
   document.getElementById('hist-month-filter').value = mon;
   
-  // Reset filter kategori supaya tidak tabrakan
+  // -- SAPU BERSIH FILTER KATEGORI & PENCARIAN --
   histCatFilter = ''; 
+  const searchEl = document.getElementById('hist-search');
+  if (searchEl) searchEl.value = '';
   
-  // Set filter dropdown
+  // Set filter dropdown spesifik untuk matrix
   document.getElementById('hist-type-filter').value = 'out'; // Pastikan Pengeluaran
   document.getElementById('hist-urg-filter').value = urgensi;
   document.getElementById('hist-util-filter').value = utilitas;
