@@ -10,273 +10,12 @@ let catView     = 'cat'; // 'cat' = kategori besar, 'sub' = sub kategori
 let showAllCat  = false;
 let expandedCats = {};
 let isAllExpanded = false;
-let pinSession = null;
-let pinBusy = false;
-
-// ---- PIN PROTECTION ----
-function hasPin() {
-  return !!(getCfg(CFG.PIN_HASH) && getCfg(CFG.PIN_SALT));
-}
-
-function clearPin() {
-  localStorage.removeItem(CFG.PIN_HASH);
-  localStorage.removeItem(CFG.PIN_SALT);
-}
-
-function makePinSalt() {
-  if (!crypto?.getRandomValues) {
-    return Math.random().toString(36).slice(2) + Date.now().toString(36);
-  }
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function hashPin(pin, salt) {
-  if (!crypto?.subtle) {
-    const raw = `${salt}:${pin}`;
-    let h = 0;
-    for (let i = 0; i < raw.length; i += 1) {
-      h = (h << 5) - h + raw.charCodeAt(i);
-      h |= 0;
-    }
-    return `f${Math.abs(h).toString(16)}`;
-  }
-  const data = new TextEncoder().encode(`${salt}:${pin}`);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function savePinHash(pin) {
-  const salt = makePinSalt();
-  const hashed = await hashPin(pin, salt);
-  setCfg(CFG.PIN_SALT, salt);
-  setCfg(CFG.PIN_HASH, hashed);
-}
-
-async function verifyPinHash(pin) {
-  const salt = getCfg(CFG.PIN_SALT);
-  const expected = getCfg(CFG.PIN_HASH);
-  if (!salt || !expected) return false;
-  const hashed = await hashPin(pin, salt);
-  return hashed === expected;
-}
-
-function togglePinScreen(show) {
-  const el = document.getElementById('pin-screen');
-  if (!el) return;
-  el.classList.toggle('hidden', !show);
-  document.body.classList.toggle('pin-active', show);
-}
-
-function updatePinView() {
-  if (!pinSession) return;
-  const titleEl = document.getElementById('pin-title');
-  const subEl = document.getElementById('pin-subtitle');
-  const errEl = document.getElementById('pin-error');
-  const forgotBtn = document.getElementById('pin-forgot-btn');
-  const cancelBtn = document.getElementById('pin-cancel-btn');
-  const shell = document.querySelector('.pin-shell');
-  const keys = document.querySelectorAll('.pin-key');
-
-  if (pinSession.type === 'setup') {
-    const isConfirm = pinSession.stage === 'confirm';
-    titleEl.textContent = isConfirm ? pinSession.confirmTitle : pinSession.title;
-    subEl.textContent = isConfirm ? pinSession.confirmSubtitle : pinSession.subtitle;
-  } else {
-    titleEl.textContent = pinSession.title;
-    subEl.textContent = pinSession.subtitle;
-  }
-
-  errEl.textContent = pinSession.error || '';
-  forgotBtn.classList.toggle('hidden', !pinSession.allowForgot);
-  cancelBtn.classList.toggle('hidden', !pinSession.cancelable);
-  shell.classList.toggle('shake', !!pinSession.shake);
-  keys.forEach((btn) => { btn.disabled = pinBusy; });
-
-  for (let i = 1; i <= 4; i += 1) {
-    document.getElementById(`pin-dot-${i}`)?.classList.toggle('filled', i <= pinSession.input.length);
-  }
-}
-
-function finishPinSession(success) {
-  const resolver = pinSession?.resolve;
-  pinSession = null;
-  pinBusy = false;
-  togglePinScreen(false);
-  if (typeof resolver === 'function') resolver(success);
-}
-
-function flashPinError(msg) {
-  if (!pinSession) return;
-  pinSession.error = msg;
-  pinSession.shake = true;
-  updatePinView();
-  setTimeout(() => {
-    if (!pinSession) return;
-    pinSession.shake = false;
-    updatePinView();
-  }, 240);
-}
-
-async function processPinInput() {
-  if (!pinSession || pinSession.input.length < 4 || pinBusy) return;
-  pinBusy = true;
-  pinSession.error = '';
-  pinSession.shake = false;
-  updatePinView();
-
-  try {
-    if (pinSession.type === 'setup') {
-      if (pinSession.stage === 'create') {
-        pinSession.firstPin = pinSession.input;
-        pinSession.input = '';
-        pinSession.stage = 'confirm';
-        pinBusy = false;
-        updatePinView();
-        return;
-      }
-
-      if (pinSession.input !== pinSession.firstPin) {
-        pinSession.input = '';
-        pinSession.firstPin = '';
-        pinSession.stage = 'create';
-        pinBusy = false;
-        flashPinError('PIN tidak sama. Coba lagi.');
-        return;
-      }
-
-      await savePinHash(pinSession.input);
-      finishPinSession(true);
-      return;
-    }
-
-    const ok = await verifyPinHash(pinSession.input);
-    if (ok) {
-      finishPinSession(true);
-      return;
-    }
-
-    pinSession.input = '';
-    pinBusy = false;
-    flashPinError('PIN salah. Coba lagi.');
-  } catch (err) {
-    pinSession.input = '';
-    pinBusy = false;
-    flashPinError('Gagal memproses PIN. Coba lagi.');
-    console.error(err);
-  }
-}
-
-function openPinSession(opts) {
-  return new Promise((resolve) => {
-    pinSession = {
-      type: opts.type,
-      stage: opts.type === 'setup' ? 'create' : '',
-      input: '',
-      firstPin: '',
-      error: '',
-      shake: false,
-      allowForgot: !!opts.allowForgot,
-      cancelable: !!opts.cancelable,
-      title: opts.title,
-      subtitle: opts.subtitle,
-      confirmTitle: opts.confirmTitle || 'Ulangi PIN',
-      confirmSubtitle: opts.confirmSubtitle || 'Masukkan PIN yang sama untuk konfirmasi.',
-      resolve
-    };
-    togglePinScreen(true);
-    updatePinView();
-  });
-}
-
-async function requireStartupPin() {
-  if (hasPin()) return true;
-  return openPinSession({
-    type: 'setup',
-    title: 'Buat PIN Aplikasi',
-    subtitle: 'Masukkan 4 digit PIN untuk melindungi akses aplikasi.',
-    confirmTitle: 'Konfirmasi PIN',
-    confirmSubtitle: 'Ulangi 4 digit PIN yang tadi kamu masukkan.',
-    allowForgot: false,
-    cancelable: false
-  });
-}
-
-async function requirePinForSettings() {
-  if (!hasPin()) {
-    return openPinSession({
-      type: 'setup',
-      title: 'Setel Ulang PIN',
-      subtitle: 'Buat PIN baru sebelum menyimpan pengaturan.',
-      confirmTitle: 'Konfirmasi PIN Baru',
-      confirmSubtitle: 'Ulangi PIN baru kamu.',
-      allowForgot: false,
-      cancelable: true
-    });
-  }
-
-  return openPinSession({
-    type: 'verify',
-    title: 'Verifikasi PIN',
-    subtitle: 'Masukkan 4 digit PIN untuk menyimpan pengaturan.',
-    allowForgot: true,
-    cancelable: true
-  });
-}
-
-function pinInput(digit) {
-  if (!pinSession || pinBusy || pinSession.input.length >= 4) return;
-  pinSession.input += digit;
-  updatePinView();
-  if (pinSession.input.length === 4) {
-    processPinInput().catch((err) => {
-      console.error(err);
-      flashPinError('Gagal memproses PIN. Coba lagi.');
-    });
-  }
-}
-
-function pinBackspace() {
-  if (!pinSession || pinBusy) return;
-  pinSession.input = pinSession.input.slice(0, -1);
-  pinSession.error = '';
-  pinSession.shake = false;
-  updatePinView();
-}
-
-function pinClear() {
-  if (!pinSession || pinBusy) return;
-  pinSession.input = '';
-  pinSession.error = '';
-  pinSession.shake = false;
-  updatePinView();
-}
-
-function pinCancel() {
-  if (!pinSession || pinBusy || !pinSession.cancelable) return;
-  finishPinSession(false);
-}
-
-function pinForgot() {
-  if (!pinSession || !pinSession.allowForgot || pinBusy) return;
-  const ok = confirm('Reset PIN sekarang? Kamu perlu membuat PIN baru.');
-  if (!ok) return;
-
-  clearPin();
-  pinSession.type = 'setup';
-  pinSession.stage = 'create';
-  pinSession.input = '';
-  pinSession.firstPin = '';
-  pinSession.title = 'Setel Ulang PIN';
-  pinSession.subtitle = 'Masukkan 4 digit PIN baru.';
-  pinSession.confirmTitle = 'Konfirmasi PIN Baru';
-  pinSession.confirmSubtitle = 'Ulangi PIN baru kamu.';
-  pinSession.allowForgot = false;
-  pinSession.error = 'PIN lama dihapus.';
-  pinSession.shake = false;
-  updatePinView();
-}
+let histCatFilter = '';
+let inCatView = 'cat';
+let inShowSubs = false;
+let outCatView = 'cat';
+let outShowSubs = false;
+let showAllOut = false;
 
 // ---- INIT ----
 window.addEventListener('DOMContentLoaded', () => {
@@ -293,8 +32,6 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 async function startApp() {
-  const ready = await requireStartupPin();
-  if (!ready) return;
   await initApp();
 }
 
@@ -375,6 +112,32 @@ function selMonth(id) {
   return document.getElementById(id)?.value || todayISO().slice(0, 7);
 }
 
+function shiftMonthKey(mon, delta) {
+  if (!mon || mon === 'all') return '';
+  const [year, month] = mon.split('-').map(Number);
+  const date = new Date(year, month - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthTransactions(mon) {
+  if (!mon) return [];
+  return allTrx.filter((t) => monthKey(t.tanggal) === mon);
+}
+
+function getMonthlyTotals(mon) {
+  const trx = getMonthTransactions(mon);
+  return {
+    trx,
+    ins: trx.filter((t) => t.type === 'in'),
+    outs: trx.filter((t) => t.type === 'out')
+  };
+}
+
+function calcPctChange(current, previous) {
+  if (!previous) return 0;
+  return Math.round((Math.abs(current - previous) / previous) * 100);
+}
+
 // ---- DASHBOARD ----
 function loadDashboard() {
   const mon  = selMonth('dash-month-filter');
@@ -388,9 +151,24 @@ function loadDashboard() {
 
   document.getElementById('dash-in').textContent  = fmtRp(totalIn);
   document.getElementById('dash-out').textContent = fmtRp(totalOut);
+  const rateEl = document.getElementById('dash-spending-rate');
+  if (rateEl) {
+    if (mon === 'all' || totalIn === 0) {
+      rateEl.textContent = '';
+    } else {
+      const rate = (totalOut / totalIn * 100).toFixed(1);
+      rateEl.textContent = `Pengeluaran ${rate}% dari pemasukan`;
+      rateEl.style.color = rate < 70 ? '#A7D8A7' : rate <= 90 ? '#F3C97B' : '#F4956A';
+    }
+  }
+  updateHeroMoM(mon, totalIn, totalOut);
+  updateHeroSub(mon, totalOut);
 
   // 1. Rekap Pemasukan
   renderInRekap(ins);
+  renderOutRekap(outs);
+  renderTop3Transactions(outs);
+  renderDashboardAnomaly(mon);
 
   // 2. Breakdown Pengeluaran
   const conNeed = outs.filter(t=>t.utilitas==='Consumptive'&&t.urgensi==='Kebutuhan').reduce((s,t)=>s+t.nominal,0);
@@ -400,9 +178,115 @@ function loadDashboard() {
 
   renderMatrix(conNeed, conWant, proNeed, proWant);
   renderUtilChart(conNeed, conWant, proNeed, proWant);
+}
 
-  // 3. Rincian Pengeluaran (Top Pengeluaran & Drill-down)
-  renderTopBars(outs);
+function updateHeroMoM(mon, totalIn, totalOut) {
+  const inEl = document.getElementById('dash-in-mom');
+  const outEl = document.getElementById('dash-out-mom');
+  if (!inEl || !outEl) return;
+
+  if (mon === 'all') {
+    inEl.style.display = 'none';
+    outEl.style.display = 'none';
+    inEl.textContent = '';
+    outEl.textContent = '';
+    return;
+  }
+
+  const prevMon = shiftMonthKey(mon, -1);
+  const prevTotals = getMonthlyTotals(prevMon);
+  const prevIn = prevTotals.ins.reduce((sum, t) => sum + t.nominal, 0);
+  const prevOut = prevTotals.outs.reduce((sum, t) => sum + t.nominal, 0);
+
+  if (!prevIn) {
+    inEl.style.display = 'none';
+    inEl.textContent = '';
+  } else {
+    const pct = calcPctChange(totalIn, prevIn);
+    inEl.style.display = 'block';
+    inEl.style.color = totalIn >= prevIn ? '#7EC87E' : '#F4956A';
+    inEl.textContent = `${totalIn < prevIn ? '↓' : (totalIn > prevIn ? '↑' : '•')} ${pct}% dari bulan lalu`;
+  }
+
+  if (!prevOut) {
+    outEl.style.display = 'none';
+    outEl.textContent = '';
+  } else {
+    const pct = calcPctChange(totalOut, prevOut);
+    outEl.style.display = 'block';
+    outEl.style.color = totalOut <= prevOut ? '#7EC87E' : '#F4956A';
+    outEl.textContent = `${totalOut < prevOut ? '↓' : (totalOut > prevOut ? '↑' : '•')} ${pct}% dari bulan lalu`;
+  }
+}
+
+function updateHeroSub(mon, totalOut) {
+  const el = document.getElementById('dash-hero-sub');
+  if (!el) return;
+
+  const currentMon = todayISO().slice(0, 7);
+  if (mon !== currentMon) {
+    el.style.display = 'none';
+    el.textContent = '';
+    return;
+  }
+
+  const today = new Date();
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const dayOfMonth = today.getDate();
+  const daysLeft = lastDay - dayOfMonth;
+  const dailyAvg = dayOfMonth ? totalOut / dayOfMonth : 0;
+
+  el.style.display = 'block';
+  el.textContent = `H-${daysLeft} menuju akhir bulan · Rata-rata harian: ${fmtRp(dailyAvg)}`;
+}
+
+function renderTop3Transactions(outs) {
+  const el = document.getElementById('dash-top3');
+  if (!el) return;
+
+  const top3 = [...outs].sort((a, b) => b.nominal - a.nominal).slice(0, 3);
+  if (!top3.length) {
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:10px 0;">Belum ada transaksi besar bulan ini</p>';
+    return;
+  }
+
+  el.innerHTML = top3.map((t) => `
+    <div class="top3-item" onclick='openTrxModal(${JSON.stringify(JSON.stringify(t))})'>
+      <div class="top3-left">${escapeHtml(t.deskripsi || '(tanpa deskripsi)')}${t.sub_kategori ? `<span class="top3-sub"> · ${escapeHtml(t.sub_kategori)}</span>` : ''}</div>
+      <div class="top3-right">${fmtRp(t.nominal)}</div>
+    </div>
+  `).join('');
+}
+
+function renderDashboardAnomaly(mon) {
+  const el = document.getElementById('dash-anomaly');
+  if (!el) return;
+  if (mon === 'all') {
+    el.innerHTML = '';
+    return;
+  }
+
+  const prevMon = shiftMonthKey(mon, -1);
+  const currentOuts = getMonthlyTotals(mon).outs;
+  const prevOuts = getMonthlyTotals(prevMon).outs;
+  const currentCatMap = {};
+  const prevCatMap = {};
+
+  currentOuts.forEach((t) => { currentCatMap[t.kategori] = (currentCatMap[t.kategori] || 0) + t.nominal; });
+  prevOuts.forEach((t) => { prevCatMap[t.kategori] = (prevCatMap[t.kategori] || 0) + t.nominal; });
+
+  const warnings = Object.keys(currentCatMap).filter((kat) => {
+    const curr = currentCatMap[kat] || 0;
+    const prev = prevCatMap[kat] || 0;
+    return prev > 0 && curr > prev * 1.5 && curr > 100000;
+  }).map((kat) => {
+    const curr = currentCatMap[kat];
+    const prev = prevCatMap[kat];
+    const pct = Math.round(((curr - prev) / prev) * 100);
+    return `<div style="background:rgba(196,118,58,0.15);color:var(--out);border:1px solid rgba(196,118,58,0.3);border-radius:8px;padding:6px 10px;font-size:12px;display:block;margin-bottom:6px;">⚠ ${escapeHtml(kat)} naik ${pct}% vs bulan lalu</div>`;
+  });
+
+  el.innerHTML = warnings.join('');
 }
 
 function escapeHtml(value) {
@@ -531,6 +415,35 @@ function renderUtilChart(conNeed, conWant, proNeed, proWant) {
 
 // ---- REKAP PEMASUKAN ----
 function renderInRekap(ins) {
+  const el = document.getElementById('dash-in-rekap');
+  if (!el) return;
+
+  const totalIn = ins.reduce((s,t)=>s+t.nominal,0);
+  if (!ins.length) {
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:10px 0;">Belum ada pemasukan bulan ini</p>';
+    return;
+  }
+
+  if (inCatView === 'sub') {
+    const subMap = {};
+    ins.forEach((t) => {
+      const key = t.sub_kategori || t.kategori;
+      subMap[key] = (subMap[key] || 0) + t.nominal;
+    });
+    const sortedSub = Object.entries(subMap).sort((a,b)=>b[1]-a[1]);
+    el.innerHTML = sortedSub.map(([label, val]) => {
+      const pct = (val/totalIn*100).toFixed(2).replace('.', ',');
+      return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(label)})' style="cursor:pointer;">
+        <div class="ir-head">
+          <span class="ir-kat">${label}</span>
+          <span class="ir-val in">${fmtRp(val)} <span class="ir-pct">${pct}%</span></span>
+        </div>
+        <div class="cb-track"><div class="cb-fill" style="width:${Math.round(val/totalIn*100)}%;background:var(--in)"></div></div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
   const catMap = {};
   ins.forEach(t => {
     if (!catMap[t.kategori]) catMap[t.kategori] = { total: 0, subs: {} };
@@ -538,25 +451,154 @@ function renderInRekap(ins) {
     if (t.sub_kategori) catMap[t.kategori].subs[t.sub_kategori] = (catMap[t.kategori].subs[t.sub_kategori]||0) + t.nominal;
   });
   const sorted = Object.entries(catMap).sort((a,b)=>b[1].total-a[1].total);
-  const totalIn = ins.reduce((s,t)=>s+t.nominal,0);
   const mx = sorted[0]?.[1].total || 1;
-
-  const el = document.getElementById('dash-in-rekap');
-  if (!sorted.length) { el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:10px 0;">Belum ada pemasukan bulan ini</p>'; return; }
 
   el.innerHTML = sorted.map(([kat, data]) => {
     const pct = (data.total/totalIn*100).toFixed(2).replace('.', ',');
-    const subRows = Object.entries(data.subs).sort((a,b)=>b[1]-a[1])
-      .map(([sub,val])=>`<div class="ir-sub"><span>${sub}</span><span>${fmtRp(val)}</span></div>`).join('');
-    return `<div class="ir-item">
+    const subRows = inShowSubs
+      ? Object.entries(data.subs).sort((a,b)=>b[1]-a[1])
+        .map(([sub,val])=>`<div class="ir-sub"><span>${sub}</span><span>${fmtRp(val)}</span></div>`).join('')
+      : '';
+    return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(kat)})' style="cursor:pointer;">
       <div class="ir-head">
         <span class="ir-kat">${kat}</span>
-        <span class="ir-val">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
+        <span class="ir-val in">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
       </div>
       <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/mx*100)}%;background:var(--in)"></div></div>
-      <div class="ir-subs">${subRows}</div>
+      ${inShowSubs ? `<div class="ir-subs">${subRows}</div>` : ''}
     </div>`;
   }).join('');
+}
+
+function renderOutRekap(outs) {
+  const el = document.getElementById('dash-out-rekap');
+  const btnShow = document.getElementById('btn-show-all-out');
+  if (!el) return;
+  const totalOut = outs.reduce((s,t)=>s+t.nominal,0);
+
+  if (!outs.length) {
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:10px 0;">Belum ada pengeluaran bulan ini</p>';
+    if (btnShow) btnShow.style.display = 'none';
+    return;
+  }
+
+  if (outCatView === 'sub') {
+    const subMap = {};
+    outs.forEach((t) => {
+      const key = t.sub_kategori || t.kategori;
+      subMap[key] = (subMap[key] || 0) + t.nominal;
+    });
+    let sortedSub = Object.entries(subMap).sort((a,b)=>b[1]-a[1]);
+    const totalItems = sortedSub.length;
+    if (!showAllOut) sortedSub = sortedSub.slice(0, 8);
+
+    if (btnShow) {
+      if (totalItems > 8) {
+        btnShow.style.display = 'block';
+        btnShow.textContent = showAllOut ? 'Sembunyikan' : `Lihat Semua (${totalItems})`;
+      } else {
+        btnShow.style.display = 'none';
+      }
+    }
+
+    el.innerHTML = sortedSub.map(([label, val]) => {
+      const pct = (val/totalOut*100).toFixed(2).replace('.', ',');
+      return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(label)})' style="cursor:pointer;">
+        <div class="ir-head">
+          <span class="ir-kat">${label}</span>
+          <span class="ir-val out">${fmtRp(val)} <span class="ir-pct">${pct}%</span></span>
+        </div>
+        <div class="cb-track"><div class="cb-fill" style="width:${Math.round(val/totalOut*100)}%;background:var(--out)"></div></div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  const catMap = {};
+  outs.forEach(t => {
+    if (!catMap[t.kategori]) catMap[t.kategori] = { total: 0, subs: {} };
+    catMap[t.kategori].total += t.nominal;
+    if (t.sub_kategori) catMap[t.kategori].subs[t.sub_kategori] = (catMap[t.kategori].subs[t.sub_kategori]||0) + t.nominal;
+  });
+  let sorted = Object.entries(catMap).sort((a,b)=>b[1].total-a[1].total);
+  const totalItems = sorted.length;
+  if (!showAllOut) sorted = sorted.slice(0, 8);
+
+  if (btnShow) {
+    if (totalItems > 8) {
+      btnShow.style.display = 'block';
+      btnShow.textContent = showAllOut ? 'Sembunyikan' : `Lihat Semua (${totalItems})`;
+    } else {
+      btnShow.style.display = 'none';
+    }
+  }
+
+  el.innerHTML = sorted.map(([kat, data]) => {
+    const pct = (data.total/totalOut*100).toFixed(2).replace('.', ',');
+    const subRows = outShowSubs
+      ? Object.entries(data.subs).sort((a,b)=>b[1]-a[1])
+        .map(([sub,val])=>`<div class="ir-sub"><span>${sub}</span><span>${fmtRp(val)}</span></div>`).join('')
+      : '';
+    return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(kat)})' style="cursor:pointer;">
+      <div class="ir-head">
+        <span class="ir-kat">${kat}</span>
+        <span class="ir-val out">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
+      </div>
+      <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/totalOut*100)}%;background:var(--out)"></div></div>
+      ${outShowSubs ? `<div class="ir-subs">${subRows}</div>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function switchInView(view) {
+  inCatView = view;
+  document.getElementById('in-csw-cat').classList.toggle('active', view === 'cat');
+  document.getElementById('in-csw-sub').classList.toggle('active', view === 'sub');
+  
+  const toggleRincian = document.getElementById('in-toggle-rincian');
+  if (toggleRincian) toggleRincian.style.display = (view === 'sub') ? 'none' : 'inline-flex';
+
+  const mon = selMonth('dash-month-filter');
+  const ins = (mon === 'all') ? allTrx.filter(t=>t.type==='in') : allTrx.filter(t=>monthKey(t.tanggal)===mon&&t.type==='in');
+  renderInRekap(ins);
+}
+
+function toggleInSubs() {
+  inShowSubs = !inShowSubs;
+  document.getElementById('in-csw-hide').classList.toggle('active', !inShowSubs);
+  document.getElementById('in-csw-show').classList.toggle('active', inShowSubs);
+  const mon = selMonth('dash-month-filter');
+  const ins = (mon === 'all') ? allTrx.filter(t=>t.type==='in') : allTrx.filter(t=>monthKey(t.tanggal)===mon&&t.type==='in');
+  renderInRekap(ins);
+}
+
+function switchOutView(view) {
+  outCatView = view;
+  document.getElementById('out-csw-cat').classList.toggle('active', view === 'cat');
+  document.getElementById('out-csw-sub').classList.toggle('active', view === 'sub');
+
+  const toggleRincian = document.getElementById('out-toggle-rincian');
+  if (toggleRincian) toggleRincian.style.display = (view === 'sub') ? 'none' : 'inline-flex';
+
+  const mon = selMonth('dash-month-filter');
+  const outs = (mon === 'all') ? allTrx.filter(t=>t.type==='out') : allTrx.filter(t=>monthKey(t.tanggal)===mon&&t.type==='out');
+  renderOutRekap(outs);
+}
+
+function toggleOutSubs() {
+  outShowSubs = !outShowSubs;
+  document.getElementById('out-csw-hide').classList.toggle('active', !outShowSubs);
+  document.getElementById('out-csw-show').classList.toggle('active', outShowSubs);
+  const mon = selMonth('dash-month-filter');
+  const outs = (mon === 'all') ? allTrx.filter(t=>t.type==='out') : allTrx.filter(t=>monthKey(t.tanggal)===mon&&t.type==='out');
+  renderOutRekap(outs);
+}
+
+function toggleShowAllOut() {
+  showAllOut = !showAllOut;
+  const mon = selMonth('dash-month-filter');
+  const outs = (mon === 'all') ? allTrx.filter(t=>t.type==='out') : allTrx.filter(t=>monthKey(t.tanggal)===mon&&t.type==='out');
+  renderOutRekap(outs);
 }
 
 // ---- RINCIAN PENGELUARAN (Switch & Expand All) ----
@@ -594,6 +636,13 @@ function toggleShowAllCat() {
   const mon  = selMonth('dash-month-filter');
   const outs = (mon === 'all') ? allTrx.filter(t=>t.type==='out') : allTrx.filter(t => monthKey(t.tanggal) === mon && t.type === 'out');
   renderTopBars(outs);
+}
+
+function jumpToHistory(kat) {
+  const mon = selMonth('dash-month-filter');
+  document.getElementById('hist-month-filter').value = mon;
+  histCatFilter = kat;
+  showPage('history');
 }
 
 function renderTopBars(outs) {
@@ -661,9 +710,12 @@ function renderTopBars(outs) {
         <div class="cb-group">
           <div class="cb-row" ${hasSubs ? `onclick="toggleCat('${kat}')" style="cursor:pointer;"` : ''}>
             <div class="cb-label">
-              <span style="display:flex;align-items:center;gap:5px;">
-                ${kat}
-                ${hasSubs ? `<svg class="chevron ${isExp?'open':''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>` : ''}
+              <span class="cb-label-main">
+                <span style="display:flex;align-items:center;gap:5px;">
+                  ${kat}
+                  ${hasSubs ? `<svg class="chevron ${isExp?'open':''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>` : ''}
+                </span>
+                <button class="cb-jump" type="button" onclick='event.stopPropagation();jumpToHistory(${JSON.stringify(kat)})'>→ Riwayat</button>
               </span>
               <span>${fmtRp(data.total)}</span>
             </div>
@@ -693,8 +745,7 @@ function renderTopBars(outs) {
   }
 }
 
-// ---- HISTORY ----
-function loadHistory() {
+function getFilteredHistoryTrx() {
   const mon    = selMonth('hist-month-filter');
   const type   = document.getElementById('hist-type-filter')?.value || '';
   const urg    = document.getElementById('hist-urg-filter')?.value  || '';
@@ -703,9 +754,23 @@ function loadHistory() {
   let trx = (mon === 'all') ? allTrx : allTrx.filter(t => monthKey(t.tanggal) === mon);
   if (type)   trx = trx.filter(t => t.type === type);
   if (urg)    trx = trx.filter(t => t.urgensi === urg);
+  // PERBAIKAN: Filter mengecek Kategori ATAU Sub Kategori
+  if (histCatFilter) trx = trx.filter(t => t.kategori === histCatFilter || t.sub_kategori === histCatFilter);
   if (search) trx = trx.filter(t =>
     (t.deskripsi + t.kategori + t.sub_kategori).toLowerCase().includes(search)
   );
+  return trx;
+}
+
+// ---- HISTORY ----
+function loadHistory() {
+  const trx = getFilteredHistoryTrx();
+  const chipEl = document.getElementById('hist-cat-chip');
+  if (chipEl) {
+    chipEl.innerHTML = histCatFilter
+      ? `<button type="button" class="hist-filter-chip" onclick="histCatFilter='';loadHistory()">Filter: ${escapeHtml(histCatFilter)} ✕</button>`
+      : '';
+  }
 
   const totalIn  = trx.filter(t=>t.type==='in').reduce((s,t)=>s+t.nominal,0);
   const totalOut = trx.filter(t=>t.type==='out').reduce((s,t)=>s+t.nominal,0);
@@ -739,6 +804,41 @@ function loadHistory() {
     <div class="trx-date-group">${fmtDate(date)}</div>
     ${groups[date].map(trxCard).join('')}
   `).join('');
+}
+
+function exportCSV() {
+  const trx = getFilteredHistoryTrx();
+  if (!trx.length) {
+    showToast('Tidak ada transaksi untuk diexport');
+    return;
+  }
+
+  const rows = [
+    ['ID', 'Tanggal', 'Tipe', 'Kategori', 'Sub Kategori', 'Deskripsi', 'Nominal', 'Urgensi', 'Utilitas'],
+    ...trx.map((t) => [
+      t.id_transaksi || '',
+      t.tanggal || '',
+      t.type === 'out' ? 'Pengeluaran' : 'Pemasukan',
+      t.kategori || '',
+      t.sub_kategori || '',
+      t.deskripsi || '',
+      t.nominal || 0,
+      t.urgensi || '',
+      t.utilitas || ''
+    ])
+  ];
+
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const mon = selMonth('hist-month-filter');
+  a.href = url;
+  a.download = `budget-${mon === 'all' ? 'all' : mon}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ---- TRX CARD ----
@@ -1214,8 +1314,8 @@ function loadSettingsForm() {
 }
 
 async function saveSettings() {
-  const pass = await requirePinForSettings();
-  if (!pass) {
+  const isConfirmed = confirm("Apakah anda yakin ingin menyimpan pengaturan?");
+  if (!isConfirmed) {
     showToast('Simpan dibatalkan');
     return;
   }

@@ -36,46 +36,6 @@
     </div>
   </div>
 
-  <div id="pin-screen" class="pin-screen hidden">
-    <div class="pin-shell">
-      <div class="pin-logo">
-        <svg width="48" height="48" viewBox="0 0 52 52" fill="none">
-          <rect width="52" height="52" fill="#8B7355"/>
-          <path d="M13 37 L26 15 L39 37" stroke="#F5F0E8" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-          <circle cx="26" cy="15" r="3.2" fill="#F5F0E8"/>
-          <line x1="17" y1="30" x2="35" y2="30" stroke="#F5F0E8" stroke-width="2" stroke-linecap="round" opacity="0.45"/>
-        </svg>
-      </div>
-      <h2 id="pin-title" class="pin-title">Buat PIN Aplikasi</h2>
-      <p id="pin-subtitle" class="pin-subtitle">Masukkan 4 digit PIN untuk melindungi aplikasi.</p>
-      <div class="pin-dots">
-        <span id="pin-dot-1" class="pin-dot"></span>
-        <span id="pin-dot-2" class="pin-dot"></span>
-        <span id="pin-dot-3" class="pin-dot"></span>
-        <span id="pin-dot-4" class="pin-dot"></span>
-      </div>
-      <p id="pin-error" class="pin-error"></p>
-      <div class="pin-top-actions">
-        <button id="pin-forgot-btn" type="button" class="pin-link hidden" onclick="pinForgot()">Lupa PIN</button>
-        <button id="pin-cancel-btn" type="button" class="pin-link hidden" onclick="pinCancel()">Batal</button>
-      </div>
-      <div class="pin-keypad">
-        <button type="button" class="pin-key" onclick="pinInput('1')">1</button>
-        <button type="button" class="pin-key" onclick="pinInput('2')">2</button>
-        <button type="button" class="pin-key" onclick="pinInput('3')">3</button>
-        <button type="button" class="pin-key" onclick="pinInput('4')">4</button>
-        <button type="button" class="pin-key" onclick="pinInput('5')">5</button>
-        <button type="button" class="pin-key" onclick="pinInput('6')">6</button>
-        <button type="button" class="pin-key" onclick="pinInput('7')">7</button>
-        <button type="button" class="pin-key" onclick="pinInput('8')">8</button>
-        <button type="button" class="pin-key" onclick="pinInput('9')">9</button>
-        <button type="button" class="pin-key pin-key-muted" onclick="pinBackspace()">DEL</button>
-        <button type="button" class="pin-key" onclick="pinInput('0')">0</button>
-        <button type="button" class="pin-key pin-key-muted" onclick="pinClear()">CLR</button>
-      </div>
-    </div>
-  </div>
-
   <div id="app" class="hidden">
 
     <header class="topbar">
@@ -107,39 +67,75 @@
               <div class="hero-inout-item">
                 <div class="hero-inout-label">↑ Pemasukan</div>
                 <div class="hero-inout-val in" id="dash-in">–</div>
+                <div id="dash-in-mom" class="hero-mom"></div>
               </div>
               <div class="hero-inout-divider"></div>
               <div class="hero-inout-item">
                 <div class="hero-inout-label">↓ Pengeluaran</div>
                 <div class="hero-inout-val out" id="dash-out">–</div>
+                <div id="dash-out-mom" class="hero-mom"></div>
               </div>
             </div>
+            <div id="dash-spending-rate" class="hero-spending-rate"></div>
+            <div id="dash-hero-sub" class="hero-sub-info"></div>
           </div>
 
-          <div class="section-row" style="margin-top:22px;">
-            <span class="section-label">Rekap Pemasukan</span>
-          </div>
-          <div id="dash-in-rekap" class="in-rekap"></div>
-
-          <div class="section-row" style="margin-top:26px;">
-            <span class="section-label">Breakdown Pengeluaran</span>
-          </div>
-          <div id="dash-breakdown-matrix"></div>
-          <div class="util-chart-wrap">
-            <div id="util-chart"></div>
-          </div>
-
-          <div class="section-row" style="margin-top:26px;">
-            <span class="section-label">Rincian Pengeluaran</span>
-            <div class="cat-switch">
-              <button class="csw active" id="csw-cat" onclick="switchCatView('cat')">Kategori</button>
-              <button class="csw" id="csw-sub" onclick="switchCatView('sub')">Sub</button>
+          <div class="dash-grid-2col">
+            
+            <div class="dash-col">
+              <div class="section-row" style="margin-top:22px;">
+                <span class="section-label">Rekap Pemasukan</span>
+                <div class="rekap-controls">
+                  <div class="cat-switch switch-rincian" id="in-toggle-rincian">
+                    <button class="csw active" id="in-csw-hide" onclick="toggleInSubs()">Ringkas</button>
+                    <button class="csw" id="in-csw-show" onclick="toggleInSubs()">Rincian</button>
+                  </div>
+                  <div class="cat-switch switch-kategori">
+                    <button class="csw active" id="in-csw-cat" onclick="switchInView('cat')">Kategori</button>
+                    <button class="csw" id="in-csw-sub" onclick="switchInView('sub')">Sub</button>
+                  </div>
+                </div>
+              </div>
+              <div id="dash-in-rekap" class="in-rekap"></div>
             </div>
+
+            <div class="dash-col">
+              <div class="section-row" style="margin-top:22px;">
+                <span class="section-label">Rekap Pengeluaran</span>
+                <div class="rekap-controls">
+                  <div class="cat-switch switch-rincian" id="out-toggle-rincian">
+                    <button class="csw active" id="out-csw-hide" onclick="toggleOutSubs()">Ringkas</button>
+                    <button class="csw" id="out-csw-show" onclick="toggleOutSubs()">Rincian</button>
+                  </div>
+                  <div class="cat-switch switch-kategori">
+                    <button class="csw active" id="out-csw-cat" onclick="switchOutView('cat')">Kategori</button>
+                    <button class="csw" id="out-csw-sub" onclick="switchOutView('sub')">Sub</button>
+                  </div>
+                </div>
+              </div>
+              <div id="dash-out-rekap" class="in-rekap"></div>
+              <button id="btn-show-all-out" class="mbtn sec" style="width:100%;margin-top:12px;font-size:12px;padding:8px;display:none;" onclick="toggleShowAllOut()">Lihat Semua</button>
+            </div>
+
+            <div class="dash-col">
+              <div class="section-row" style="margin-top:22px;">
+                <span class="section-label">Breakdown Pengeluaran</span>
+              </div>
+              <div id="dash-breakdown-matrix"></div>
+              <div class="util-chart-wrap">
+                <div id="util-chart"></div>
+              </div>
+            </div>
+
+            <div class="dash-col">
+              <div class="section-row" style="margin-top:22px;">
+                <span class="section-label">Transaksi Terbesar</span>
+              </div>
+              <div id="dash-top3"></div>
+              <div id="dash-anomaly" style="margin-top:10px;"></div>
+            </div>
+
           </div>
-          <div id="dash-cat-bars" class="cat-bars"></div>
-          
-          <button id="btn-expand-all" class="link-btn" style="width:100%;margin-top:12px;font-size:13px;display:none;text-align:center;" onclick="toggleExpandAll()">Buka Semua Rincian ↓</button>
-          <button id="btn-show-all-cat" class="mbtn sec" style="width:100%;margin-top:12px;font-size:12px;padding:8px;display:none;" onclick="toggleShowAllCat()">Lihat Semua</button>
 
         </div>
       </section>
@@ -196,8 +192,13 @@
               <option value="Kebutuhan">Kebutuhan</option>
               <option value="Keinginan">Keinginan</option>
             </select>
+            <button class="filter-btn-export" onclick="exportCSV()" title="Export CSV">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+              CSV
+            </button>
           </div>
           <div id="hist-summary" class="hist-summary"></div>
+          <div id="hist-cat-chip"></div>
           <div id="history-list" class="trx-list"></div>
           <div id="hist-empty" class="empty-state hidden">Tidak ada transaksi untuk filter ini.</div>
         </div>
