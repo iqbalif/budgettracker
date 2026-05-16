@@ -4,7 +4,7 @@
  * GANTI VERSI DI SINI saat rilis update baru:
  * contoh: 'budget-tracker-v2' -> 'budget-tracker-v3'
  */
-const CACHE_NAME = 'budget-tracker-v3';
+const CACHE_NAME = 'budget-tracker-v2';
 
 // Daftar asset inti yang harus di-precache
 const CORE_ASSETS = [

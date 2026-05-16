@@ -19,7 +19,7 @@ ${JSON.stringify(CATS_OUT)}
 Kembalikan HANYA JSON ini (tanpa markdown, tanpa teks lain, tanpa backtick):
 {
   "type": "in" | "out",
-  "deskripsi": "deskripsi singkat 3-6 kata",
+  "deskripsi": "teks deskripsi (patuhi aturan khusus di bawah, jangan batasi jumlah kata)",
   "nominal": integer_rupiah,
   "tanggal": "YYYY-MM-DD",
   "kategori": "nama kategori dari daftar",
@@ -28,7 +28,7 @@ Kembalikan HANYA JSON ini (tanpa markdown, tanpa teks lain, tanpa backtick):
   "utilitas": "Consumptive" | "Productive" | ""
 }
 
-Aturan:
+Aturan Dasar:
 - Tanggal tidak disebutkan → hari ini: ${todayISO()}
 - "tadi/barusan/tadi pagi" = hari ini; "kemarin" = kemarin
 - nominal harus integer, tanpa desimal
@@ -36,7 +36,13 @@ Aturan:
 - Investasi, tabungan, asuransi, dana darurat = Productive
 - Semua lainnya = Consumptive
 - Makan pokok/harian = Kebutuhan; jajan/nongkrong/delivery = Keinginan (pertimbangkan konteks)
-- Pilih kategori & sub_kategori PERSIS dari daftar di atas`;
+- Pilih kategori & sub_kategori PERSIS dari daftar di atas
+
+Aturan Khusus Kolom "deskripsi":
+1. STRICT MODE: Jika input diapit tanda kutip (contoh: "ABC Saus 270ml x2"), DILARANG mengubah, menambah, atau meringkas teks tersebut. Gunakan persis apa adanya.
+2. SMART FORMATTING: Jika input pendek ("buah 5k"), rapikan ("Buah"). TAPI, JIKA INPUT MENGANDUNG MEREK, UKURAN, ATAU LEBIH DARI 3 KATA, biarkan persis apa adanya! JANGAN diringkas!
+3. NO VERBS/NOUNS: JANGAN PERNAH menambahkan kata seperti "Beli", "Bayar", "Pembelian", "Pembayaran", atau "Pengeluaran untuk" jika tidak ada di teks asli user.
+4. PEMISAHAN CLUE: Jika ada kata petunjuk yang dipisah koma, gunakan HANYA untuk analisis kategori. Jangan masukkan ke deskripsi.`;
   }
 
   async function parse(text) {
