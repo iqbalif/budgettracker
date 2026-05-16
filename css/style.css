@@ -227,7 +227,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 
 /* ---- AI CARD ---- */
 .ai-card{background:var(--bg-card);border:1px solid var(--border2);border-radius:var(--r-lg);padding:16px;margin-bottom:14px;}
-.ai-textarea{width:100%;border:none;outline:none;resize:none;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--text);background:transparent;min-height:100px;line-height:1.65;caret-color:var(--accent);}
+.ai-textarea{width:100%;border:none;outline:none;resize:none;font-family:'DM Sans',sans-serif;font-size:15px;color:var(--text);background:transparent;min-height:160px;line-height:1.65;caret-color:var(--accent);}
 .ai-textarea::placeholder{color:var(--text-3);}
 .btn-ai{width:100%;padding:12px;margin-top:10px;background:var(--accent);color:#fff;border:none;border-radius:var(--r-sm);font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:opacity .15s,transform .1s;}
 .btn-ai:hover{opacity:.9;}
@@ -558,4 +558,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
     grid-column: auto;
     width: auto;
   }
+}
+
+.ai-textarea {
+  min-height: 210px !important;
 }
