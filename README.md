@@ -1,13 +1,13 @@
 # Budget Tracker — PWA
 
-Aplikasi budget tracker pribadi berbasis web (PWA), terhubung langsung ke Google Sheets milikmu sendiri sebagai database. Tidak ada server, tidak ada backend berbayar — semua berjalan di browser.
+Aplikasi budget tracker pribadi berbasis web (PWA) yang terhubung ke Google Sheets milikmu sendiri sebagai database. Tidak ada server, tidak ada backend berbayar — semua jalan di browser.
 
 ---
 
-## ✨ Fitur
+## Fitur
 
-**Dashboard**
-- Ringkasan total pemasukan & pengeluaran bulan ini, lengkap dengan indikator perubahan vs bulan lalu (↑/↓ %)
+### Dashboard
+- Total pemasukan & pengeluaran bulan ini, lengkap dengan indikator perubahan vs bulan lalu (↑/↓ %)
 - Persentase pengeluaran dari pemasukan ("Pengeluaran X% dari pemasukan")
 - Info H-X menuju akhir bulan & rata-rata pengeluaran harian
 - Rekap pemasukan per kategori dengan toggle Kategori/Sub dan tampilan Ringkas/Rincian
@@ -15,30 +15,30 @@ Aplikasi budget tracker pribadi berbasis web (PWA), terhubung langsung ke Google
 - Matrix 2×2 Utilitas × Urgensi (Consumptive/Productive × Kebutuhan/Keinginan)
 - Stacked bar chart Kebutuhan vs Keinginan per utilitas
 - Top 3 transaksi terbesar bulan ini
-- Notifikasi anomali otomatis jika pengeluaran kategori tertentu naik >50% vs bulan lalu
+- Notifikasi otomatis jika pengeluaran kategori tertentu naik >50% vs bulan lalu
 
-**Input Transaksi**
+### Input Transaksi
 - Mode AI: ketik bebas dalam bahasa Indonesia → Gemini mengklasifikasikan otomatis → preview yang bisa diedit sebelum disimpan
 - Mode Manual: form dropdown bertingkat sesuai kategori dari spreadsheet
 - Fallback multi-model Gemini otomatis jika satu model tidak tersedia
 
-**Riwayat**
+### Riwayat
 - Search bar + filter bulan, tipe (masuk/keluar), dan urgensi
 - Ringkasan total masuk/keluar/saldo untuk filter aktif
 - Tap transaksi → modal detail dengan opsi Edit, Duplikasi, Hapus
 - Filter kategori langsung dari Dashboard (tap "Lihat di Riwayat" pada rekap)
 - Export ke CSV
 
-**Pengaturan**
+### Pengaturan
 - Semua credentials disimpan di localStorage browser — tidak pernah dikirim ke server manapun selain Google & Gemini
 
-**PWA**
+### PWA
 - Bisa di-install ke homescreen seperti app native
-- Bekerja optimal di mobile maupun desktop
+- Bekerja di mobile maupun desktop
 
 ---
 
-## 🗂️ Struktur File
+## Struktur File
 
 ```
 budget-tracker/
@@ -55,7 +55,7 @@ budget-tracker/
 
 ---
 
-## 🚀 Deploy ke Vercel
+## Deploy ke Vercel
 
 1. Upload semua file ke GitHub (buat repo baru, upload seluruh folder)
 2. Login ke [vercel.com](https://vercel.com) → **Add New Project** → Import dari GitHub → **Deploy**
@@ -63,7 +63,7 @@ budget-tracker/
 
 ---
 
-## 📊 Template Google Sheets
+## Template Google Sheets
 
 Gunakan template berikut sebagai titik awal:
 
@@ -71,7 +71,7 @@ Gunakan template berikut sebagai titik awal:
 
 Klik **File → Make a copy** untuk menyalin ke Google Drive kamu sendiri.
 
-## 📋 Format Google Sheets
+## Format Google Sheets
 
 Buat spreadsheet dengan sheet-sheet berikut:
 
@@ -85,9 +85,9 @@ Buat spreadsheet dengan sheet-sheet berikut:
 |---|---|---|---|---|---|---|---|---|
 | ID Transaksi | Tanggal | Year Mon | Kategori | Sub Kategori | Deskripsi | Nominal | Urgensi | Utilitas |
 
-> **Urgensi:** `Kebutuhan` atau `Keinginan`
-> **Utilitas:** `Consumptive` atau `Productive`
-> **Format tanggal:** `9-Mei-2026` (ditulis otomatis oleh aplikasi)
+> **Urgensi:** `Kebutuhan` atau `Keinginan`  
+> **Utilitas:** `Consumptive` atau `Productive`  
+> **Format tanggal:** `9-Mei-2026` (ditulis otomatis oleh aplikasi)  
 > **Format Year Mon:** `'2026 05` (dengan apostrof di depan agar tidak dibaca sebagai tanggal)
 
 ### Sheet: `Kategori In` & `Kategori Out`
@@ -100,11 +100,11 @@ Digunakan untuk dropdown kategori di form input. Format 2 kolom:
 | Gaji & Penghasilan Pokok | Tunjangan Kinerja |
 | Investasi | SBN / Sukuk |
 
-Aplikasi membaca kategori ini secara otomatis saat startup — tidak perlu edit kode jika kamu menambah/mengubah kategori.
+Aplikasi membaca kategori ini secara otomatis saat startup — tidak perlu edit kode jika kamu menambah atau mengubah kategori.
 
 ---
 
-## 🔑 API Keys
+## API Keys
 
 Semua diisi di halaman **Pengaturan** dalam aplikasi.
 
@@ -130,7 +130,7 @@ Lihat bagian setup di bawah.
 
 ---
 
-## ⚙️ Setup Google Apps Script
+## Setup Google Apps Script
 
 Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, dan menghapus, kamu perlu Google Apps Script yang di-deploy sebagai Web App.
 
@@ -237,31 +237,28 @@ function doGet(e) {
 > **Catatan:** Setiap kali kamu mengubah kode Apps Script, kamu harus membuat deployment baru dan mengupdate URL-nya di Pengaturan aplikasi.
 
 ### Kenapa `clearContent` bukan `deleteRow`?
-Aplikasi menyimpan nomor baris (`_row`) saat membaca data. Jika baris dihapus dengan `deleteRow`, nomor baris semua data di bawahnya bergeser dan operasi edit/hapus berikutnya bisa mengenai baris yang salah. `clearContent` mengosongkan baris tanpa menggeser apapun.
+Aplikasi menyimpan nomor baris (`_row`) saat membaca data. Kalau baris dihapus dengan `deleteRow`, nomor baris semua data di bawahnya bergeser dan operasi edit/hapus berikutnya bisa mengenai baris yang salah. `clearContent` mengosongkan baris tanpa menggeser apapun.
 
 ---
 
-## 🔒 Keamanan
+## Keamanan
 
 - Semua credentials (API Key, Apps Script URL) disimpan **hanya di localStorage browser kamu** — tidak pernah disimpan di server manapun
 - Google API Key hanya punya akses READ ke spreadsheet
-- Apps Script URL berfungsi layaknya password untuk operasi tulis — jangan dibagikan ke orang lain
-- Tidak ada autentikasi login — aplikasi ini dirancang untuk penggunaan pribadi di perangkat sendiri
+- Apps Script URL berfungsi seperti password untuk operasi tulis — jangan dibagikan ke orang lain
+- Tidak ada autentikasi login — aplikasi ini memang dirancang untuk penggunaan pribadi di perangkat sendiri
 
 ---
 
-## 📱 Install ke Homescreen
+## Install ke Homescreen
 
-Di Chrome (Android) atau Safari (iOS):
-- Buka URL aplikasi → menu browser → **"Add to Home Screen"**
-- Beri nama "Budget Tracker"
-- Aplikasi akan berjalan seperti app native, tanpa address bar
+Di Chrome (Android) atau Safari (iOS): buka URL aplikasi → menu browser → **"Add to Home Screen"** → beri nama "Budget Tracker". Aplikasi akan jalan seperti app native, tanpa address bar.
 
 ---
 
-## 💡 Tips
+## Tips
 
 - Tambah atau ubah kategori cukup dari sheet `Kategori In` / `Kategori Out` — aplikasi membacanya otomatis tanpa perlu edit kode
-- Gunakan mode AI untuk input cepat: cukup ketik "makan siang padang 35rb" dan biarkan Gemini yang mengklasifikasikan
+- Gunakan mode AI untuk input cepat: ketik saja "makan siang padang 35rb" dan biarkan Gemini yang mengklasifikasikan
 - Filter bulan di Dashboard dan Riwayat bisa diset ke "Semua Waktu" untuk melihat akumulasi seluruh data
 - Export CSV tersedia di halaman Riwayat untuk analisis lebih lanjut di Excel/Sheets
