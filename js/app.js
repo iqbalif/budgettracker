@@ -220,36 +220,45 @@ function updateHeroMoM(mon, totalIn, totalOut) {
 }
 
 function updateHeroSub(mon, totalOut) {
-  const el = document.getElementById('dash-hero-sub');
+  const el = document.getElementById('dash-hero-sub'); // Elemen Bawah
+  const topDaysEl = document.getElementById('dash-hero-days'); // Elemen Atas
+  
   if (!el) return;
 
-  // Jika filter "Semua Bulan" dipilih, sembunyikan info ini
+  // Jika filter "Semua Bulan" dipilih
   if (mon === 'all' || !mon) {
     el.style.display = 'none';
-    el.textContent = '';
+    el.innerHTML = '';
+    if(topDaysEl) topDaysEl.innerHTML = '';
     return;
   }
 
   const today = new Date();
   const currentMon = todayISO().slice(0, 7); 
   const [year, month] = mon.split('-').map(Number);
-  
-  // Menghitung total hari pada bulan yang dipilih (misal: 31 untuk Mei, 30 untuk April)
   const totalDaysInMonth = new Date(year, month, 0).getDate(); 
 
   el.style.display = 'block';
 
   if (mon === currentMon) {
-    // Jika bulan berjalan, hitung berdasarkan tanggal hari ini
+    // ---- BULAN BERJALAN ----
     const dayOfMonth = today.getDate();
-    const daysLeft = totalDaysInMonth - dayOfMonth;
     const dailyAvg = dayOfMonth ? totalOut / dayOfMonth : 0;
-    // Menggunakan innerHTML dan tag <br> untuk baris baru
-    el.innerHTML = `H-${daysLeft} menuju akhir bulan <br> Rata-rata pengeluaran harian: ${fmtRp(dailyAvg)}`;
+    
+    // Teks Bawah: Hanya fokus ke uang
+    el.innerHTML = `Rata-rata pengeluaran harian: ${fmtRp(dailyAvg)}`;
+    
+    // Teks Atas: Progress Hari (Format: • HARI 17/31)
+    if(topDaysEl) {
+      topDaysEl.innerHTML = ` &nbsp;•&nbsp; HARI ${dayOfMonth}/${totalDaysInMonth}`;
+    }
   } else {
-    // Jika bulan lain (sejarah), hitung berdasarkan total hari di bulan tersebut
+    // ---- BULAN LALU (SEJARAH) ----
     const dailyAvg = totalOut / totalDaysInMonth;
     el.innerHTML = `Rata-rata pengeluaran harian: ${fmtRp(dailyAvg)}`;
+    
+    // Kosongkan indikator atas karena bulannya sudah lewat
+    if(topDaysEl) topDaysEl.innerHTML = '';
   }
 }
 

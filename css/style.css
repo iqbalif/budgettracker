@@ -61,7 +61,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 
 /* ---- HERO CARD — pemasukan & pengeluaran besar, tanpa saldo ---- */
 .hero-card{background:var(--accent);border-radius:var(--r-lg);padding:20px;margin-bottom:18px;position:relative;overflow:hidden;}
-.hero-card::before{content:'';position:absolute;top:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.06);}
+.hero-card::before{content:'';position:absolute;top:-40px;right:-40px;width:140px;height:140px;border-radius:50%;background:rgba(255,255,255,.06);pointer-events:none;}
 .hero-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
 .hero-label{font-size:11px;color:rgba(255,255,255,.6);letter-spacing:.07em;text-transform:uppercase;}
 .hero-select{background:rgba(255,255,255,.15);border:none;border-radius:6px;color:#fff;font-size:12px;font-family:'DM Sans',sans-serif;padding:4px 8px;outline:none;cursor:pointer;}
@@ -562,4 +562,23 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 
 .ai-textarea {
   min-height: 210px !important;
+}
+
+/* ---- PERBAIKAN TEKS RINGKASAN MOBILE ---- */
+.hero-top {
+  gap: 8px; /* Memberi bantalan aman agar teks tidak menabrak dropdown */
+}
+
+.hero-label {
+  white-space: nowrap; /* Memaksa teks tetap 1 baris lurus memanjang */
+  font-size: 10px !important; /* Sedikit dikecilkan khusus layar HP */
+  letter-spacing: 0.02em !important; /* Huruf sedikit dirapatkan khusus layar HP */
+}
+
+/* Mengembalikan ukuran teks ke semula saat dibuka di Laptop/Tablet */
+@media (min-width: 768px) {
+  .hero-label {
+    font-size: 11px !important;
+    letter-spacing: 0.07em !important;
+  }
 }

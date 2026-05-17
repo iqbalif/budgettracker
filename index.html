@@ -60,7 +60,7 @@
 
           <div class="hero-card">
             <div class="hero-top">
-              <span class="hero-label">Ringkasan Bulan Ini</span>
+              <span class="hero-label">Ringkasan Bulan Ini<span id="dash-hero-days"></span></span>
               <select id="dash-month-filter" class="hero-select" onchange="loadDashboard()"></select>
             </div>
             <div class="hero-inout">
@@ -83,6 +83,7 @@
           <div class="dash-grid-2col">
             
             <div class="dash-col">
+              
               <div class="section-row" style="margin-top:22px;">
                 <span class="section-label">Rekap Pemasukan</span>
                 <div class="rekap-controls">
@@ -97,9 +98,19 @@
                 </div>
               </div>
               <div id="dash-in-rekap" class="in-rekap"></div>
+
+              <div class="section-row" style="margin-top:22px;">
+                <span class="section-label">Breakdown Pengeluaran</span>
+              </div>
+              <div id="dash-breakdown-matrix"></div>
+              <div class="util-chart-wrap">
+                <div id="util-chart"></div>
+              </div>
+
             </div>
 
             <div class="dash-col">
+              
               <div class="section-row" style="margin-top:22px;">
                 <span class="section-label">Rekap Pengeluaran</span>
                 <div class="rekap-controls">
@@ -115,24 +126,13 @@
               </div>
               <div id="dash-out-rekap" class="in-rekap"></div>
               <button id="btn-show-all-out" class="mbtn sec" style="width:100%;margin-top:12px;font-size:12px;padding:8px;display:none;" onclick="toggleShowAllOut()">Lihat Semua</button>
-            </div>
 
-            <div class="dash-col">
-              <div class="section-row" style="margin-top:22px;">
-                <span class="section-label">Breakdown Pengeluaran</span>
-              </div>
-              <div id="dash-breakdown-matrix"></div>
-              <div class="util-chart-wrap">
-                <div id="util-chart"></div>
-              </div>
-            </div>
-
-            <div class="dash-col">
               <div class="section-row" style="margin-top:22px;">
                 <span class="section-label">Pengeluaran Terbesar</span>
               </div>
               <div id="dash-top3"></div>
               <div id="dash-anomaly" style="margin-top:10px;"></div>
+
             </div>
 
           </div>
