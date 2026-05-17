@@ -1,133 +1,259 @@
-# Budget Tracker — Web App
+# Budget Tracker — PWA
 
-Aplikasi budget tracker pribadi berbasis web, terhubung ke Google Sheets milikmu sendiri.
+Aplikasi budget tracker pribadi berbasis web (PWA), terhubung langsung ke Google Sheets milikmu sendiri sebagai database. Tidak ada server, tidak ada backend berbayar — semua berjalan di browser.
 
 ---
 
-## 🗂️ Struktur file
+## ✨ Fitur
+
+**Dashboard**
+- Ringkasan total pemasukan & pengeluaran bulan ini, lengkap dengan indikator perubahan vs bulan lalu (↑/↓ %)
+- Persentase pengeluaran dari pemasukan ("Pengeluaran X% dari pemasukan")
+- Info H-X menuju akhir bulan & rata-rata pengeluaran harian
+- Rekap pemasukan per kategori dengan toggle Kategori/Sub dan tampilan Ringkas/Rincian
+- Rekap pengeluaran per kategori dengan fitur yang sama + shortcut langsung ke Riwayat
+- Matrix 2×2 Utilitas × Urgensi (Consumptive/Productive × Kebutuhan/Keinginan)
+- Stacked bar chart Kebutuhan vs Keinginan per utilitas
+- Top 3 transaksi terbesar bulan ini
+- Notifikasi anomali otomatis jika pengeluaran kategori tertentu naik >50% vs bulan lalu
+
+**Input Transaksi**
+- Mode AI: ketik bebas dalam bahasa Indonesia → Gemini mengklasifikasikan otomatis → preview yang bisa diedit sebelum disimpan
+- Mode Manual: form dropdown bertingkat sesuai kategori dari spreadsheet
+- Fallback multi-model Gemini otomatis jika satu model tidak tersedia
+
+**Riwayat**
+- Search bar + filter bulan, tipe (masuk/keluar), dan urgensi
+- Ringkasan total masuk/keluar/saldo untuk filter aktif
+- Tap transaksi → modal detail dengan opsi Edit, Duplikasi, Hapus
+- Filter kategori langsung dari Dashboard (tap "Lihat di Riwayat" pada rekap)
+- Export ke CSV
+
+**Pengaturan**
+- Semua credentials disimpan di localStorage browser — tidak pernah dikirim ke server manapun selain Google & Gemini
+
+**PWA**
+- Bisa di-install ke homescreen seperti app native
+- Bekerja optimal di mobile maupun desktop
+
+---
+
+## 🗂️ Struktur File
 
 ```
 budget-tracker/
 ├── index.html
 ├── vercel.json
-├── css/style.css
+├── css/
+│   └── style.css
 └── js/
-    ├── config.js   ← kategori & helper
-    ├── sheets.js   ← Google Sheets API (read) + Apps Script (write)
-    ├── ai.js       ← Gemini AI parsing
-    └── app.js      ← logika UI & routing
+    ├── config.js   ← helper, formatter, kategori (diisi otomatis dari Sheets)
+    ├── sheets.js   ← Google Sheets API (read) + Apps Script (write/edit/hapus)
+    ├── ai.js       ← Gemini AI parsing natural language
+    └── app.js      ← seluruh logika UI, routing, dan render dashboard
 ```
 
 ---
 
 ## 🚀 Deploy ke Vercel
 
-1. **Upload ke GitHub**
-   - Buat repo baru di github.com, upload semua file ini
-2. **Import ke Vercel**
-   - Login di vercel.com → Add New Project → Import dari GitHub → Deploy
-
----
-
-## 🔑 API Keys — isi di halaman Pengaturan aplikasi
-
-### 1. Spreadsheet ID
-URL Google Sheets kamu:
-`https://docs.google.com/spreadsheets/d/[SPREADSHEET_ID]/edit`
-
-### 2. Google API Key (untuk READ data)
-- [console.cloud.google.com](https://console.cloud.google.com) → Library → "Google Sheets API" → Enable
-- Credentials → Create Credentials → API Key
-- Restrict key: APIs → Google Sheets API saja
-
-### 3. Gemini API Key (untuk AI parsing — GRATIS)
-- [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) → Get API Key
-- Gratis: 15 request/menit, 1 juta token/hari
-
-### 4. Apps Script URL (untuk WRITE — simpan, edit, hapus)
-Lihat bagian bawah README ini.
+1. Upload semua file ke GitHub (buat repo baru, upload seluruh folder)
+2. Login ke [vercel.com](https://vercel.com) → **Add New Project** → Import dari GitHub → **Deploy**
+3. Tidak ada environment variable yang perlu diset — semua konfigurasi diisi langsung di halaman Pengaturan aplikasi
 
 ---
 
 ## 📋 Format Google Sheets
 
-### Sheet Pemasukan
-| A: ID Transaksi | B: Tanggal | C: Year Mon | D: Kategori | E: Sub Kategori | F: Deskripsi | G: Nominal |
+Buat spreadsheet dengan sheet-sheet berikut:
+
+### Sheet: `Pemasukan`
+| A | B | C | D | E | F | G |
 |---|---|---|---|---|---|---|
+| ID Transaksi | Tanggal | Year Mon | Kategori | Sub Kategori | Deskripsi | Nominal |
 
-### Sheet Pengeluaran
-| A: ID Transaksi | B: Tanggal | C: Year Mon | D: Kategori | E: Sub Kategori | F: Deskripsi | G: Nominal | H: Urgensi | I: Utilitas |
+### Sheet: `Pengeluaran`
+| A | B | C | D | E | F | G | H | I |
 |---|---|---|---|---|---|---|---|---|
+| ID Transaksi | Tanggal | Year Mon | Kategori | Sub Kategori | Deskripsi | Nominal | Urgensi | Utilitas |
 
-> Urgensi = Kebutuhan / Keinginan
-> Utilitas = Consumptive / Productive
+> **Urgensi:** `Kebutuhan` atau `Keinginan`
+> **Utilitas:** `Consumptive` atau `Productive`
+> **Format tanggal:** `9-Mei-2026` (ditulis otomatis oleh aplikasi)
+> **Format Year Mon:** `'2026 05` (dengan apostrof di depan agar tidak dibaca sebagai tanggal)
+
+### Sheet: `Kategori In` & `Kategori Out`
+Digunakan untuk dropdown kategori di form input. Format 2 kolom:
+
+| A | B |
+|---|---|
+| Kategori | Sub Kategori |
+| Gaji & Penghasilan Pokok | Gaji Pokok |
+| Gaji & Penghasilan Pokok | Tunjangan Kinerja |
+| Investasi | SBN / Sukuk |
+
+Aplikasi membaca kategori ini secara otomatis saat startup — tidak perlu edit kode jika kamu menambah/mengubah kategori.
 
 ---
 
-## ⚙️ Setup Google Apps Script (untuk write/edit/hapus)
+## 🔑 API Keys
 
-Google Sheets API dengan API Key hanya bisa READ. Untuk WRITE, kamu butuh Apps Script.
-Kamu sudah punya Apps Script dari bot Telegram — tinggal tambahkan fungsi `doPost` ini:
+Semua diisi di halaman **Pengaturan** dalam aplikasi.
+
+### 1. Spreadsheet ID
+Ambil dari URL Google Sheets:
+```
+https://docs.google.com/spreadsheets/d/[SPREADSHEET_ID]/edit
+```
+
+### 2. Google API Key — untuk READ data
+- Buka [console.cloud.google.com](https://console.cloud.google.com)
+- Library → cari **Google Sheets API** → Enable
+- Credentials → Create Credentials → **API Key**
+- Restrict key: Application restrictions → HTTP referrers (domain Vercel-mu), API restrictions → Google Sheets API
+
+### 3. Gemini API Key — untuk AI parsing (gratis)
+- Buka [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) → **Get API Key**
+- Gratis: 15 request/menit, 1 juta token/hari
+- Aplikasi otomatis mencoba beberapa model Gemini jika satu gagal
+
+### 4. Apps Script URL — untuk WRITE, EDIT, HAPUS
+Lihat bagian setup di bawah.
+
+---
+
+## ⚙️ Setup Google Apps Script
+
+Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, dan menghapus, kamu perlu Google Apps Script yang di-deploy sebagai Web App.
+
+### Kode Apps Script
+
+Buat file baru di Google Apps Script (buka Google Sheets → **Extensions → Apps Script**), lalu paste kode berikut:
 
 ```javascript
+// ============================================
+// BUDGET TRACKER - PWA BACKEND (WEB APP ONLY)
+// ============================================
+
+var spreadsheetId = "MASUKKAN_SPREADSHEET_ID_KAMU";
+
 function doPost(e) {
+  // LockService mencegah tabrakan data jika ada request bersamaan
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Sistem sibuk, coba lagi" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   try {
-    const data   = JSON.parse(e.postData.contents);
-    const ss     = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet  = ss.getSheetByName(data.sheet);
-
-    if (!sheet) {
-      return ContentService.createTextOutput(
-        JSON.stringify({ ok: false, error: 'Sheet tidak ditemukan: ' + data.sheet })
-      ).setMimeType(ContentService.MimeType.JSON);
+    var contents;
+    try {
+      contents = JSON.parse(e.postData.contents);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Format data tidak valid" }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
-    if (data.action === 'append') {
-      sheet.appendRow(data.values);
-
-    } else if (data.action === 'update') {
-      const range = sheet.getRange(data.row, 1, 1, data.values.length);
-      range.setValues([data.values]);
-
-    } else if (data.action === 'delete') {
-      // Clear the row (jangan deleteRow karena bisa geser row number)
-      const lastCol = sheet.getLastColumn();
-      sheet.getRange(data.row, 1, 1, lastCol).clearContent();
+    if (contents.action) {
+      return handleWebAppRequest(contents);
     }
 
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: true }))
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Aksi tidak dikenali" }))
       .setMimeType(ContentService.MimeType.JSON);
 
-  } catch(err) {
-    return ContentService
-      .createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function handleWebAppRequest(data) {
+  try {
+    var ss = SpreadsheetApp.openById(spreadsheetId);
+    var sheet = ss.getSheetByName(data.sheet);
+    if (!sheet) throw new Error("Sheet tidak ditemukan: " + data.sheet);
+
+    if (data.action === "append") {
+      // Cari baris kosong pertama pada kolom B (Tanggal), tulis di sana
+      var firstEmptyRow = findFirstEmptyRowByColumn(sheet, 2);
+      sheet.getRange(firstEmptyRow, 1, 1, data.values.length).setValues([data.values]);
+
+    } else if (data.action === "update") {
+      sheet.getRange(data.row, 1, 1, data.values.length).setValues([data.values]);
+
+    } else if (data.action === "delete") {
+      // clearContent (bukan deleteRow) agar nomor baris data lain tidak bergeser
+      sheet.getRange(data.row, 1, 1, sheet.getLastColumn()).clearContent();
+
+    } else {
+      throw new Error("Action tidak valid: " + data.action);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true }))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
+
+function findFirstEmptyRowByColumn(sheet, colIndex) {
+  var range = sheet.getRange(1, colIndex, sheet.getLastRow() || 1, 1);
+  var values = range.getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (values[i][0] === "" || values[i][0] === null) {
+      return i + 1;
+    }
+  }
+  return values.length + 1;
+}
+
+function doGet(e) {
+  return ContentService.createTextOutput("Budget Tracker Backend is Active.")
+    .setMimeType(ContentService.MimeType.TEXT);
+}
 ```
 
-### Cara deploy Apps Script:
-1. Buka Google Sheets → Extensions → Apps Script
-2. Tambahkan fungsi `doPost` di atas ke file yang sudah ada (bersama `doGet` dan fungsi bot Telegram-mu)
-3. Klik **Deploy** → **Manage Deployments** → **New Deployment**
-4. Type: **Web App**
-5. Execute as: **Me**
-6. Who has access: **Anyone** ← penting agar web app bisa akses
-7. Copy URL deployment-nya → paste ke Pengaturan aplikasi (field "Apps Script URL")
+### Cara Deploy
 
-### Keamanan
-URL Apps Script bersifat rahasia — jangan share ke orang lain. URL ini juga disimpan hanya di localStorage browser kamu.
+1. Di editor Apps Script, klik **Deploy → Manage Deployments → New Deployment**
+2. Type: **Web App**
+3. Execute as: **Me**
+4. Who has access: **Anyone**
+5. Klik **Deploy** → copy URL yang muncul
+6. Paste URL tersebut ke field **Apps Script URL** di halaman Pengaturan aplikasi
+
+> **Catatan:** Setiap kali kamu mengubah kode Apps Script, kamu harus membuat deployment baru dan mengupdate URL-nya di Pengaturan aplikasi.
+
+### Kenapa `clearContent` bukan `deleteRow`?
+Aplikasi menyimpan nomor baris (`_row`) saat membaca data. Jika baris dihapus dengan `deleteRow`, nomor baris semua data di bawahnya bergeser dan operasi edit/hapus berikutnya bisa mengenai baris yang salah. `clearContent` mengosongkan baris tanpa menggeser apapun.
 
 ---
 
-## 📱 Install ke homescreen HP
-Chrome/Safari → menu → "Add to Home Screen" → nama "Budget Tracker"
-Hasilnya seperti app native, tanpa perlu download dari App Store.
+## 🔒 Keamanan
+
+- Semua credentials (API Key, Apps Script URL) disimpan **hanya di localStorage browser kamu** — tidak pernah disimpan di server manapun
+- Google API Key hanya punya akses READ ke spreadsheet
+- Apps Script URL berfungsi layaknya password untuk operasi tulis — jangan dibagikan ke orang lain
+- Tidak ada autentikasi login — aplikasi ini dirancang untuk penggunaan pribadi di perangkat sendiri
+
+---
+
+## 📱 Install ke Homescreen
+
+Di Chrome (Android) atau Safari (iOS):
+- Buka URL aplikasi → menu browser → **"Add to Home Screen"**
+- Beri nama "Budget Tracker"
+- Aplikasi akan berjalan seperti app native, tanpa address bar
 
 ---
 
 ## 💡 Tips
-- Bot Telegram dan web app ini bisa jalan bersamaan — keduanya tulis ke Sheets yang sama
-- Sesuaikan nama sheet di Pengaturan jika berbeda dengan "Pemasukan"/"Pengeluaran"
-- Data kamu 100% ada di Google Sheets milikmu sendiri
+
+- Tambah atau ubah kategori cukup dari sheet `Kategori In` / `Kategori Out` — aplikasi membacanya otomatis tanpa perlu edit kode
+- Gunakan mode AI untuk input cepat: cukup ketik "makan siang padang 35rb" dan biarkan Gemini yang mengklasifikasikan
+- Filter bulan di Dashboard dan Riwayat bisa diset ke "Semua Waktu" untuk melihat akumulasi seluruh data
+- Export CSV tersedia di halaman Riwayat untuk analisis lebih lanjut di Excel/Sheets
