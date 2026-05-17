@@ -82,6 +82,14 @@ Buat spreadsheet dengan sheet-sheet berikut:
 > **Format tanggal:** `9-Mei-2026` (ditulis otomatis oleh aplikasi)
 > **Format Year Mon:** `'2026 05` (dengan apostrof di depan agar tidak dibaca sebagai tanggal)
 
+## 📊 Template Google Sheets
+
+Gunakan template berikut sebagai titik awal:
+
+👉 [Buka Template](https://docs.google.com/spreadsheets/d/1zzMD-OxKCT0OVzp-138lZ9ZT3uf8Ya1iYPx69wXYnGI/edit?usp=sharing)
+
+Klik **File → Make a copy** untuk menyalin ke Google Drive kamu sendiri.
+
 ### Sheet: `Kategori In` & `Kategori Out`
 Digunakan untuk dropdown kategori di form input. Format 2 kolom:
 
