@@ -16,6 +16,7 @@ Aplikasi budget tracker pribadi berbasis web (PWA) yang terhubung ke Google Shee
 - Stacked bar chart Kebutuhan vs Keinginan per utilitas
 - Top 3 transaksi terbesar bulan ini
 - Notifikasi otomatis jika pengeluaran kategori tertentu naik >50% vs bulan lalu
+- Indikator overbudget langsung di Dashboard jika ada aturan anggaran yang terlampaui
 
 ### Input Transaksi
 - Mode AI: ketik bebas dalam bahasa Indonesia → Gemini mengklasifikasikan otomatis → preview yang bisa diedit sebelum disimpan
@@ -28,6 +29,14 @@ Aplikasi budget tracker pribadi berbasis web (PWA) yang terhubung ke Google Shee
 - Tap transaksi → modal detail dengan opsi Edit, Duplikasi, Hapus
 - Filter kategori langsung dari Dashboard (tap "Lihat di Riwayat" pada rekap)
 - Export ke CSV
+
+### Budgeting *(baru)*
+- **Multi-Scope:** Aturan anggaran bisa diset untuk seluruh pengeluaran, per kategori, atau per sub-kategori
+- **Nominal Tetap (Fixed):** Mematok batas angka pasti, misal maksimal Rp 1.500.000 untuk kategori Makan
+- **Persentase Dinamis:** Batas berbasis persentase yang mengikuti total pemasukan, total pengeluaran, atau nominal kategori/sub-kategori lain
+- **Indikator Waspada (80%):** Peringatan kuning ⚠️ saat pengeluaran mendekati batas
+- **Indikator Overbudget (100%):** Peringatan merah 🚨 saat batas sudah terlampaui, disertai progress bar dan detail kalkulasi
+- Aturan tersinkronisasi otomatis ke sheet `BudgetRules` di Google Sheets — lintas perangkat, tidak hilang saat cache dibersihkan
 
 ### Pengaturan
 - Semua credentials disimpan di localStorage browser — tidak pernah dikirim ke server manapun selain Google & Gemini
@@ -71,9 +80,11 @@ Gunakan template berikut sebagai titik awal:
 
 Klik **File → Make a copy** untuk menyalin ke Google Drive kamu sendiri.
 
+---
+
 ## Format Google Sheets
 
-Buat spreadsheet dengan sheet-sheet berikut:
+Spreadsheet membutuhkan lima sheet berikut:
 
 ### Sheet: `Pemasukan`
 | A | B | C | D | E | F | G |
@@ -101,6 +112,15 @@ Digunakan untuk dropdown kategori di form input. Format 2 kolom:
 | Investasi | SBN / Sukuk |
 
 Aplikasi membaca kategori ini secara otomatis saat startup — tidak perlu edit kode jika kamu menambah atau mengubah kategori.
+
+### Sheet: `BudgetRules` *(baru)*
+Digunakan untuk menyimpan aturan anggaran. Aplikasi mengelola sheet ini secara otomatis — kamu tidak perlu mengisinya manual.
+
+| A | B | C | D | E | F | G |
+|---|---|---|---|---|---|---|
+| ID | Scope | Target | Type | Base | BaseTarget | Limit |
+
+> Jangan hapus baris header. Aplikasi membaca data mulai dari baris kedua.
 
 ---
 
@@ -132,11 +152,11 @@ Lihat bagian setup di bawah.
 
 ## Setup Google Apps Script
 
-Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, dan menghapus, kamu perlu Google Apps Script yang di-deploy sebagai Web App.
+Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, menghapus transaksi, dan menyinkronkan aturan budgeting, kamu perlu Google Apps Script yang di-deploy sebagai Web App.
 
 ### Kode Apps Script
 
-Buat file baru di Google Apps Script (buka Google Sheets → **Extensions → Apps Script**), lalu paste kode berikut:
+Buka Google Sheets → **Extensions → Apps Script**, lalu paste kode berikut:
 
 ```javascript
 // ============================================
@@ -146,7 +166,6 @@ Buat file baru di Google Apps Script (buka Google Sheets → **Extensions → Ap
 var spreadsheetId = "MASUKKAN_SPREADSHEET_ID_KAMU";
 
 function doPost(e) {
-  // LockService mencegah tabrakan data jika ada request bersamaan
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(5000)) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Sistem sibuk, coba lagi" }))
@@ -165,7 +184,6 @@ function doPost(e) {
     if (contents.action) {
       return handleWebAppRequest(contents);
     }
-
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Aksi tidak dikenali" }))
       .setMimeType(ContentService.MimeType.JSON);
 
@@ -195,13 +213,22 @@ function handleWebAppRequest(data) {
       // clearContent (bukan deleteRow) agar nomor baris data lain tidak bergeser
       sheet.getRange(data.row, 1, 1, sheet.getLastColumn()).clearContent();
 
+    } else if (data.action === "overwrite_all") {
+      // Digunakan oleh modul Budgeting untuk menyimpan seluruh aturan sekaligus
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
+      }
+      if (data.values && data.values.length > 0) {
+        sheet.getRange(2, 1, data.values.length, data.values[0].length).setValues(data.values);
+      }
+
     } else {
       throw new Error("Action tidak valid: " + data.action);
     }
 
     return ContentService.createTextOutput(JSON.stringify({ ok: true }))
       .setMimeType(ContentService.MimeType.JSON);
-
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -212,14 +239,25 @@ function findFirstEmptyRowByColumn(sheet, colIndex) {
   var range = sheet.getRange(1, colIndex, sheet.getLastRow() || 1, 1);
   var values = range.getValues();
   for (var i = 1; i < values.length; i++) {
-    if (values[i][0] === "" || values[i][0] === null) {
-      return i + 1;
-    }
+    if (values[i][0] === "" || values[i][0] === null) return i + 1;
   }
   return values.length + 1;
 }
 
 function doGet(e) {
+  // Endpoint untuk mengambil aturan budgeting dari aplikasi
+  if (e.parameter.action === "get_rules") {
+    try {
+      var ss = SpreadsheetApp.openById(spreadsheetId);
+      var sheet = ss.getSheetByName("BudgetRules");
+      var data = sheet.getDataRange().getValues();
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, data: data }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch(err) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
   return ContentService.createTextOutput("Budget Tracker Backend is Active.")
     .setMimeType(ContentService.MimeType.TEXT);
 }
@@ -262,3 +300,4 @@ Di Chrome (Android) atau Safari (iOS): buka URL aplikasi → menu browser → **
 - Gunakan mode AI untuk input cepat: ketik saja "makan siang padang 35rb" dan biarkan Gemini yang mengklasifikasikan
 - Filter bulan di Dashboard dan Riwayat bisa diset ke "Semua Waktu" untuk melihat akumulasi seluruh data
 - Export CSV tersedia di halaman Riwayat untuk analisis lebih lanjut di Excel/Sheets
+- Aturan budgeting tersimpan di Google Sheets (`BudgetRules`) sehingga tetap ada meski cache browser dibersihkan atau kamu ganti perangkat
