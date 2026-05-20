@@ -57,6 +57,8 @@ async function refreshData() {
     CATS_IN = cats.in;
     CATS_OUT = cats.out;
     allTrx = trx;
+    
+    await fetchBudgetRulesFromCloud();
 
     populateMonthFilters();
     if (currentPage === 'dashboard') loadDashboard();
@@ -83,6 +85,11 @@ function showPage(name) {
   if (name === 'history')   loadHistory();
   if (name === 'settings')  loadSettingsForm();
   if (name === 'input')     initManualForm();
+  if (name === 'budgeting') {
+    renderBudgetRules();
+    toggleBudgetScope();
+    toggleBudgetType();
+  }
 }
 
 // ---- MONTH FILTERS ----
@@ -163,6 +170,8 @@ function loadDashboard() {
   }
   updateHeroMoM(mon, totalIn, totalOut);
   updateHeroSub(mon, totalOut);
+  
+  checkBudgetAlerts(mon, totalIn, totalOut, outs);
 
   // 1. Rekap Pemasukan
   renderInRekap(ins);
@@ -178,6 +187,7 @@ function loadDashboard() {
 
   renderMatrix(conNeed, conWant, proNeed, proWant);
   renderUtilChart(conNeed, conWant, proNeed, proWant);
+  checkBudgetAlerts();
 }
 
 function updateHeroMoM(mon, totalIn, totalOut) {
@@ -1428,4 +1438,375 @@ function showToast(msg) {
   el.classList.remove('hidden');
   clearTimeout(_tt);
   _tt = setTimeout(() => el.classList.add('hidden'), 2800);
+}
+
+// ============================================
+// LOGIKA HALAMAN BUDGETING
+// ============================================
+
+let budgetRules = JSON.parse(localStorage.getItem('budget_rules')) || [];
+let editBudgetId = null;
+
+async function syncBudgetRulesToCloud() {
+  const url = getCfg(CFG.SCRIPT_URL);
+  if (!url) return;
+  const array2D = budgetRules.map(r => [
+    r.id || '',
+    r.scope || '',
+    r.target || '',
+    r.type || '',
+    r.base || '',
+    r.baseTarget || '',
+    r.limit || 0
+  ]);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: "overwrite_all", sheet: "BudgetRules", values: array2D }),
+      mode: 'no-cors'
+    });
+  } catch(e) {
+    console.error('Failed to sync budget rules', e);
+  }
+}
+
+async function fetchBudgetRulesFromCloud() {
+  const url = getCfg(CFG.SCRIPT_URL);
+  if (!url) return;
+  try {
+    const res = await fetch(`${url}?action=get_rules`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && Array.isArray(data.values) && data.values.length > 0) {
+      const rows = data.values.slice(1);
+      budgetRules = rows.map(r => ({
+        id: r[0],
+        scope: r[1],
+        target: r[2],
+        type: r[3],
+        base: r[4] === '' ? null : r[4],
+        baseTarget: r[5] === '' ? null : r[5],
+        limit: parseInt(r[6], 10) || 0
+      }));
+      localStorage.setItem('budget_rules', JSON.stringify(budgetRules));
+      if (typeof renderBudgetRules === 'function') renderBudgetRules();
+    }
+  } catch(e) {
+    console.error('Failed to fetch budget rules', e);
+  }
+}
+
+function loadBudgeting() {
+  renderBudgetRules();
+  toggleBudgetScope();
+  toggleBudgetType();
+}
+
+// 1. Tampilkan Target Berdasarkan Cakupan
+function toggleBudgetScope() {
+  const scope = document.getElementById('budget-scope').value;
+  const targetRow = document.getElementById('budget-target-row');
+  const targetSel = document.getElementById('budget-target');
+  const targetLabel = document.getElementById('budget-target-label');
+  
+  targetSel.innerHTML = '';
+  if (scope === 'all') {
+    targetRow.classList.add('hidden');
+  } else if (scope === 'kategori') {
+    targetRow.classList.remove('hidden');
+    targetLabel.textContent = 'Pilih Kategori';
+    Object.keys(CATS_OUT || {}).forEach(c => targetSel.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`);
+  } else if (scope === 'sub') {
+    targetRow.classList.remove('hidden');
+    targetLabel.textContent = 'Pilih Sub-Kategori';
+    Object.keys(CATS_OUT || {}).forEach(c => {
+      const subs = CATS_OUT[c] || [];
+      subs.forEach(s => targetSel.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)} (${escapeHtml(c)})</option>`);
+    });
+  }
+}
+
+// 2. Tampilkan Pembanding & Label Berdasarkan Tipe
+function toggleBudgetType() {
+  const type = document.getElementById('budget-type').value;
+  const baseRow = document.getElementById('budget-base-row');
+  const limitLabel = document.getElementById('budget-limit-label');
+  const limitInput = document.getElementById('budget-limit');
+
+  limitInput.value = ''; // Selalu kosongkan saat ganti tipe
+
+  if (type === 'percent') {
+    baseRow.classList.remove('hidden');
+    limitLabel.textContent = 'Batas Persentase (%)';
+    limitInput.placeholder = 'Contoh: 15';
+  } else {
+    baseRow.classList.add('hidden');
+    limitLabel.textContent = 'Batas Nominal (Rp)';
+    limitInput.placeholder = '0';
+    const baseTargetRow = document.getElementById('budget-base-target-row');
+    if (baseTargetRow) baseTargetRow.classList.add('hidden');
+  }
+  toggleBudgetBase();
+}
+
+function toggleBudgetBase() {
+  const base = document.getElementById('budget-base').value;
+  const row = document.getElementById('budget-base-target-row');
+  const sel = document.getElementById('budget-base-target');
+  const label = document.getElementById('budget-base-target-label');
+  if (!row || !sel) return;
+  
+  sel.innerHTML = '';
+  if (base === 'in' || base === 'out' || document.getElementById('budget-type').value !== 'percent') {
+    row.classList.add('hidden');
+  } else if (base === 'kategori') {
+    row.classList.remove('hidden');
+    label.textContent = 'Pilih Kategori Pembanding';
+    const allCats = [...Object.keys(CATS_IN || {}), ...Object.keys(CATS_OUT || {})];
+    const uniqueCats = [...new Set(allCats)];
+    uniqueCats.forEach(c => sel.innerHTML += `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`);
+  } else if (base === 'sub') {
+    row.classList.remove('hidden');
+    label.textContent = 'Pilih Sub-Kategori Pembanding';
+    
+    const combinedCats = {};
+    for (let c in (CATS_IN || {})) combinedCats[c] = [...(CATS_IN[c] || [])];
+    for (let c in (CATS_OUT || {})) {
+      if (!combinedCats[c]) combinedCats[c] = [];
+      combinedCats[c] = [...new Set([...combinedCats[c], ...(CATS_OUT[c] || [])])];
+    }
+    
+    Object.keys(combinedCats).forEach(c => {
+      combinedCats[c].forEach(s => sel.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)} (${escapeHtml(c)})</option>`);
+    });
+  }
+}
+
+// 3. Format Otomatis: Ribuan (Rp) vs Puluhan (%)
+function formatBudgetLimit(el) {
+  const type = document.getElementById('budget-type').value;
+  let val = el.value.replace(/[^0-9]/g, ''); // Hapus semua selain angka
+  
+  if (!val) {
+    el.value = '';
+    return;
+  }
+
+  if (type === 'nominal') {
+    el.value = parseInt(val, 10).toLocaleString('id-ID');
+  } else {
+    let num = parseInt(val, 10);
+    if (num > 100) num = 100; // Persen mentok di 100
+    el.value = num;
+  }
+}
+
+// 4. Tombol Tambah Aturan (Selesai Diperbaiki)
+function addBudgetRule() {
+  const scope = document.getElementById('budget-scope').value;
+  const target = document.getElementById('budget-target').value;
+  const type = document.getElementById('budget-type').value;
+  const base = document.getElementById('budget-base').value;
+  const baseTarget = document.getElementById('budget-base-target')?.value || null;
+  const limitRaw = document.getElementById('budget-limit').value.replace(/[^0-9]/g, '');
+  const limit = parseInt(limitRaw, 10);
+
+  if (!limitRaw || isNaN(limit) || limit <= 0) {
+    alert('Masukkan batas nominal atau persentase dengan benar!');
+    return;
+  }
+
+  if (editBudgetId) {
+    const idx = budgetRules.findIndex(x => x.id === editBudgetId);
+    if (idx !== -1) {
+      budgetRules[idx].scope = scope;
+      budgetRules[idx].target = scope === 'all' ? 'Semua Pengeluaran' : target;
+      budgetRules[idx].type = type;
+      budgetRules[idx].base = type === 'percent' ? base : null;
+      budgetRules[idx].baseTarget = (type === 'percent' && (base === 'kategori' || base === 'sub')) ? baseTarget : null;
+      budgetRules[idx].limit = limit;
+    }
+    editBudgetId = null;
+    const btn = document.querySelector('#page-budgeting .btn-save');
+    if (btn) btn.textContent = 'Tambah Aturan';
+  } else {
+    const newRule = {
+      id: 'br_' + Date.now(),
+      scope: scope,
+      target: scope === 'all' ? 'Semua Pengeluaran' : target,
+      type: type,
+      base: type === 'percent' ? base : null,
+      baseTarget: (type === 'percent' && (base === 'kategori' || base === 'sub')) ? baseTarget : null,
+      limit: limit
+    };
+    budgetRules.push(newRule);
+  }
+
+  localStorage.setItem('budget_rules', JSON.stringify(budgetRules));
+  
+  document.getElementById('budget-limit').value = '';
+  renderBudgetRules();
+  loadDashboard(); // Update peringatan di dashboard
+  syncBudgetRulesToCloud();
+}
+
+// 5. Render Daftar Aturan
+function renderBudgetRules() {
+  const list = document.getElementById('budget-rules-list');
+  if (!list) return;
+
+  if (budgetRules.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-light);font-size:13px;padding:20px;">Belum ada aturan budget.</div>';
+    return;
+  }
+
+  list.innerHTML = budgetRules.map(r => {
+    let title = r.scope === 'all' ? 'Seluruh Pengeluaran' : r.target;
+    let limitTxt = '';
+    if (r.type === 'nominal') {
+      limitTxt = `Maksimal: <b>${fmtRp(r.limit)}</b>`;
+    } else {
+      let baseStr = r.base === 'in' ? 'Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${r.baseTarget}`;
+      limitTxt = `Maksimal: <b>${r.limit}%</b> dari ${baseStr}`;
+    }
+    
+    return `
+      <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:10px;">
+        <div>
+          <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px;">${title}</div>
+          <div style="font-size:12px; color:var(--text-light);">${limitTxt}</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button onclick="editBudgetRule('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Edit</button>
+          <button onclick="deleteBudgetRule('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Hapus</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function editBudgetRule(id) {
+  const r = budgetRules.find(x => x.id === id);
+  if (!r) return;
+  
+  editBudgetId = id;
+  
+  document.getElementById('budget-scope').value = r.scope;
+  toggleBudgetScope();
+  
+  if (r.scope !== 'all') {
+    document.getElementById('budget-target').value = r.target;
+  }
+  
+  document.getElementById('budget-type').value = r.type;
+  toggleBudgetType();
+  
+  if (r.type === 'percent') {
+    document.getElementById('budget-base').value = r.base;
+    toggleBudgetBase();
+    if (r.base === 'kategori' || r.base === 'sub') {
+      document.getElementById('budget-base-target').value = r.baseTarget;
+    }
+  }
+  
+  const limitInput = document.getElementById('budget-limit');
+  limitInput.value = r.limit;
+  formatBudgetLimit(limitInput);
+  
+  const btn = document.querySelector('#page-budgeting .btn-save');
+  if (btn) btn.textContent = 'Simpan Perubahan';
+  
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// 6. Hapus Aturan
+function deleteBudgetRule(id) {
+  budgetRules = budgetRules.filter(r => r.id !== id);
+  localStorage.setItem('budget_rules', JSON.stringify(budgetRules));
+  renderBudgetRules();
+  loadDashboard(); // Update peringatan di dashboard
+  syncBudgetRulesToCloud();
+}
+
+// ============================================
+// NOTIFIKASI DASHBOARD
+// ============================================
+function checkBudgetAlerts() {
+  const alertContainer = document.getElementById('dash-budget-alert');
+  if (!alertContainer) return;
+  alertContainer.innerHTML = '';
+  
+  const rules = JSON.parse(localStorage.getItem('budget_rules')) || [];
+  if (rules.length === 0) return;
+
+  const monthEl = document.getElementById('dash-month-filter');
+  const mon = monthEl ? monthEl.value : '';
+  const rawTrx = typeof allTrx !== 'undefined' ? allTrx : [];
+  const currentMon = mon === 'all' || !mon ? todayISO().slice(0, 7) : mon;
+  const monthTrx = mon === 'all' ? rawTrx : rawTrx.filter(t => monthKey(t.tanggal) === currentMon);
+
+  const totalIn = monthTrx.filter(t => t.type === 'in').reduce((s, t) => s + t.nominal, 0);
+  const totalOut = monthTrx.filter(t => t.type === 'out').reduce((s, t) => s + t.nominal, 0);
+
+  let alertsHtml = '';
+
+  rules.forEach(r => {
+    let usage = 0;
+    
+    // Hitung Uang Keluar
+    if (r.scope === 'all') usage = totalOut;
+    else if (r.scope === 'kategori') usage = monthTrx.filter(t => t.type === 'out' && t.kategori === r.target).reduce((s, t) => s + t.nominal, 0);
+    else if (r.scope === 'sub') usage = monthTrx.filter(t => t.type === 'out' && t.sub_kategori === r.target).reduce((s, t) => s + t.nominal, 0);
+
+    // Hitung Limit Pembanding
+    let limitVal = 0;
+    if (r.type === 'nominal') limitVal = r.limit;
+    else if (r.type === 'percent') {
+      let baseVal = 0;
+      if (r.base === 'in') baseVal = totalIn;
+      else if (r.base === 'out') baseVal = totalOut;
+      else if (r.base === 'kategori') {
+        baseVal = monthTrx.filter(t => t.kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
+      } else if (r.base === 'sub') {
+        baseVal = monthTrx.filter(t => t.sub_kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
+      }
+      limitVal = (r.limit / 100) * baseVal;
+    }
+
+    // Tampilkan Peringatan
+    if (limitVal > 0) {
+      const pct = (usage / limitVal) * 100;
+      if (pct >= 80) { // Hanya muncul jika sudah >= 80%
+        const isDanger = pct >= 100;
+        const bgColor = isDanger ? '#FFF0F0' : '#FFF9E6'; // Merah Muda vs Kuning Muda
+        const color = isDanger ? 'var(--out)' : '#B8860B';
+        const icon = isDanger ? '🚨' : '⚠️';
+        const title = r.scope === 'all' ? 'Seluruh Pengeluaran' : r.target;
+        
+        let detailLimit = fmtRp(limitVal);
+        if (r.type === 'percent') {
+          let baseStr = r.base === 'in' ? 'Total Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${r.baseTarget}`;
+          detailLimit = `${fmtRp(limitVal)} (${r.limit}% dari ${baseStr})`;
+        }
+        
+        alertsHtml += `
+          <div style="background:${bgColor}; border:1px solid ${color}; border-radius:10px; padding:14px; margin-bottom:12px; display:flex; align-items:flex-start; gap:12px;">
+            <div style="font-size:22px;">${icon}</div>
+            <div style="flex:1;">
+              <div style="font-size:14px; font-weight:700; color:${color}; margin-bottom:4px;">${title}</div>
+              <div style="font-size:12px; color:var(--text); line-height:1.4;">Pemakaian: <b>${fmtRp(usage)}</b> dari batas ${detailLimit} - Terpakai ${pct.toFixed(1)}%</div>
+              <div style="width:100%; height:8px; background:rgba(0,0,0,0.06); border-radius:4px; margin-top:10px; overflow:hidden;">
+                <div style="height:100%; width:${Math.min(pct, 100)}%; background:${color}; border-radius:4px;"></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    }
+  });
+
+  if (alertsHtml) {
+    alertContainer.innerHTML = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Peringatan Budget</span></div>` + alertsHtml;
+  }
 }

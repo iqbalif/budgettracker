@@ -79,6 +79,8 @@
             <div id="dash-spending-rate" class="hero-spending-rate"></div>
             <div id="dash-hero-sub" class="hero-sub-info"></div>
           </div>
+          
+          <div id="dash-budget-alert" style="width: 100%; margin-top: 20px;"></div>
 
           <div class="dash-grid-2col">
             
@@ -209,6 +211,65 @@
         </div>
       </section>
 
+      <section id="page-budgeting" class="page">
+        <div class="page-scroll">
+          <h2 class="page-title">Budgeting</h2>
+          <p class="page-sub">Atur batasan pengeluaran agar lebih terkontrol</p>
+          
+          <div class="budget-form-card">
+            
+            <div class="mf-field">
+              <label>Cakupan Budget</label>
+              <select id="budget-scope" onchange="toggleBudgetScope()">
+                <option value="all">Seluruh Pengeluaran</option>
+                <option value="kategori">Kategori Spesifik</option>
+                <option value="sub">Sub-Kategori Spesifik</option>
+              </select>
+            </div>
+
+            <div class="mf-field hidden" id="budget-target-row">
+              <label id="budget-target-label">Pilih Target</label>
+              <select id="budget-target"></select>
+            </div>
+
+            <div class="mf-field">
+              <label>Tipe Batasan</label>
+              <select id="budget-type" onchange="toggleBudgetType()">
+                <option value="nominal">Nominal Rupiah (Rp)</option>
+                <option value="percent">Persentase (%)</option>
+              </select>
+            </div>
+
+            <div class="mf-field hidden" id="budget-base-row">
+              <label>Dibandingkan Terhadap</label>
+              <select id="budget-base" onchange="toggleBudgetBase()">
+                <option value="in">Total Pemasukan Bulan Ini</option>
+                <option value="out">Total Pengeluaran Bulan Ini</option>
+                <option value="kategori">Kategori Spesifik</option>
+                <option value="sub">Sub-Kategori Spesifik</option>
+              </select>
+            </div>
+
+            <div class="mf-field hidden" id="budget-base-target-row">
+              <label id="budget-base-target-label">Pilih Target Pembanding</label>
+              <select id="budget-base-target"></select>
+            </div>
+
+            <div class="mf-field">
+              <label id="budget-limit-label">Batas Nominal (Rp)</label>
+              <input type="text" inputmode="numeric" id="budget-limit" placeholder="0" oninput="formatBudgetLimit(this)">
+            </div>
+
+            <button class="btn-save" style="width:100%;margin-top:10px;" onclick="addBudgetRule()">Tambah Aturan</button>
+          </div>
+
+          <div style="margin-top:24px;">
+            <h3 style="font-size:14px; margin-bottom:12px; font-weight:500;">Daftar Aturan Budget</h3>
+            <div id="budget-rules-list"></div>
+          </div>
+        </div>
+      </section>
+
       <section id="page-settings" class="page">
         <div class="page-scroll">
           <h2 class="page-title">Pengaturan</h2>
@@ -260,9 +321,13 @@
         <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
         <span>Riwayat</span>
       </button>
-      <button class="nav-btn" data-page="settings" onclick="showPage('settings')">
-        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-        <span>Pengaturan</span>
+      <button class="nav-btn" data-page="budgeting" onclick="showPage('budgeting')">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path>
+          <path d="M12 18V6"></path>
+        </svg>
+        <span>Budgeting</span>
       </button>
     </nav>
 
