@@ -31,15 +31,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }, 900);
 });
 
-async function startApp() {
-  await initApp();
+function startApp() {
+  initApp();
 }
 
 function updateHistoryUI() {
   if (typeof loadHistory === 'function') loadHistory();
 }
 
-async function initApp() {
+function initApp() {
   populateMonthFilters();
   const hasConfig = getCfg(CFG.SHEET_ID) && getCfg(CFG.GOOGLE_KEY);
 
@@ -76,8 +76,8 @@ async function refreshDataBackground() {
     // Simpan ke local storage
     localStorage.setItem('trx', JSON.stringify(trx));
     
-    await fetchBudgetRulesFromCloud();
-
+    fetchBudgetRulesFromCloud();
+ 
     populateMonthFilters();
     
     // Jika user sedang membuka form input manual, refresh dropdown-nya
@@ -93,6 +93,8 @@ async function refreshDataBackground() {
     showToast('Gagal load: ' + e.message);
   }
 }
+
+const refreshData = refreshDataBackground;
 
 // ---- ROUTING ----
 function showPage(name) {
