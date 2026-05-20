@@ -35,17 +35,32 @@ async function startApp() {
   await initApp();
 }
 
+function updateHistoryUI() {
+  if (typeof loadHistory === 'function') loadHistory();
+}
+
 async function initApp() {
   populateMonthFilters();
   const hasConfig = getCfg(CFG.SHEET_ID) && getCfg(CFG.GOOGLE_KEY);
+
+  // Render instan dari memori lokal (Optimistic UI)
+  const localTrx = JSON.parse(localStorage.getItem('trx')) || [];
+  allTrx = localTrx;
+  loadDashboard();
+  updateHistoryUI();
+  if (typeof renderBudgetRules === 'function') renderBudgetRules();
+  if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
+
   if (!hasConfig) {
     showToast('Isi Spreadsheet ID & API Key di Pengaturan dulu 👆');
     return;
   }
-  await refreshData();
+
+  // Sinkronisasi data dari awan secara diam-diam di background
+  refreshDataBackground(); 
 }
 
-async function refreshData() {
+async function refreshDataBackground() {
   try {
     // Ambil transaksi dan kategori secara paralel agar proses loading lebih cepat
     const [cats, trx] = await Promise.all([
@@ -58,17 +73,22 @@ async function refreshData() {
     CATS_OUT = cats.out;
     allTrx = trx;
     
+    // Simpan ke local storage
+    localStorage.setItem('trx', JSON.stringify(trx));
+    
     await fetchBudgetRulesFromCloud();
 
     populateMonthFilters();
-    if (currentPage === 'dashboard') loadDashboard();
-    if (currentPage === 'history')   loadHistory();
     
     // Jika user sedang membuka form input manual, refresh dropdown-nya
     if (currentPage === 'input' && !document.getElementById('input-manual-section').classList.contains('hidden')) {
       document.getElementById('manual-form-wrap').innerHTML = buildManualForm();
       initManualForm();
     }
+    
+    // Silent re-render
+    loadDashboard();
+    updateHistoryUI();
   } catch(e) {
     showToast('Gagal load: ' + e.message);
   }
@@ -1477,20 +1497,31 @@ async function fetchBudgetRulesFromCloud() {
   try {
     const res = await fetch(`${url}?action=get_rules`);
     if (!res.ok) return;
-    const data = await res.json();
-    if (data && Array.isArray(data.values) && data.values.length > 0) {
-      const rows = data.values.slice(1);
-      budgetRules = rows.map(r => ({
-        id: r[0],
-        scope: r[1],
-        target: r[2],
-        type: r[3],
-        base: r[4] === '' ? null : r[4],
-        baseTarget: r[5] === '' ? null : r[5],
-        limit: parseInt(r[6], 10) || 0
-      }));
-      localStorage.setItem('budget_rules', JSON.stringify(budgetRules));
+    const json = await res.json();
+    
+    // Perbaikan: Baca json.data, bukan json.values
+    if (json && json.ok && Array.isArray(json.data)) {
+      let parsedData = [];
+      
+      // Jika length > 1, berarti ada aturan (baris 0 adalah Header)
+      if (json.data.length > 1) {
+        const rows = json.data.slice(1);
+        parsedData = rows.map(r => ({
+          id: r[0],
+          scope: r[1],
+          target: r[2],
+          type: r[3],
+          base: r[4] === '' ? null : r[4],
+          baseTarget: r[5] === '' ? null : r[5],
+          limit: parseInt(r[6], 10) || 0
+        }));
+      }
+      
+      budgetRules = parsedData;
+      localStorage.setItem('budget_rules', JSON.stringify(parsedData));
+      
       if (typeof renderBudgetRules === 'function') renderBudgetRules();
+      if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
     }
   } catch(e) {
     console.error('Failed to fetch budget rules', e);
