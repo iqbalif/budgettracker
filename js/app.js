@@ -51,6 +51,12 @@ function initApp() {
   if (typeof renderBudgetRules === 'function') renderBudgetRules();
   if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
 
+  const lastSync = localStorage.getItem('last_sync_time');
+  if (lastSync) {
+    const el = document.getElementById('sync-status-text');
+    if (el) el.textContent = lastSync;
+  }
+
   if (!hasConfig) {
     showToast('Isi Spreadsheet ID & API Key di Pengaturan dulu 👆');
     return;
@@ -61,6 +67,12 @@ function initApp() {
 }
 
 async function refreshDataBackground() {
+  const btn = document.getElementById('btn-refresh-cloud');
+  const svg = btn?.querySelector('svg');
+  
+  if (btn) btn.disabled = true;
+  if (svg) svg.classList.add('spinning');
+
   try {
     // Ambil transaksi dan kategori secara paralel agar proses loading lebih cepat
     const [cats, trx] = await Promise.all([
@@ -89,31 +101,33 @@ async function refreshDataBackground() {
     // Silent re-render
     loadDashboard();
     updateHistoryUI();
+
+    const now = new Date();
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    const timeStr = `✓ Tersinkronisasi dengan Google Sheets: ${now.getDate()} ${months[now.getMonth()]} ${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} WIB`;
+    
+    const syncTextEl = document.getElementById('sync-status-text');
+    if (syncTextEl) syncTextEl.textContent = timeStr;
+    localStorage.setItem('last_sync_time', timeStr);
+
     return true;
   } catch(e) {
     showToast('Gagal load: ' + e.message);
     return false;
+  } finally {
+    if (btn) btn.disabled = false;
+    if (svg) svg.classList.remove('spinning');
   }
 }
 
 const refreshData = refreshDataBackground;
 
 async function triggerManualRefresh() {
-  const btn = document.getElementById('btn-refresh');
-  const svg = btn?.querySelector('svg');
-  
-  if (btn) btn.disabled = true;
-  if (svg) svg.classList.add('spinning');
-  
   showToast('Menyinkronkan data dengan Google Sheets...');
-  
   const success = await refreshDataBackground();
   if (success) {
     showToast('Data berhasil diperbarui ✓');
   }
-  
-  if (btn) btn.disabled = false;
-  if (svg) svg.classList.remove('spinning');
 }
 
 // ---- ROUTING ----
