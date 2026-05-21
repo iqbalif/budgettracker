@@ -37,7 +37,13 @@ function fmtDate(s) {
   const d = new Date(s);
   return isNaN(d) ? s : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
 }
-function todayISO() { return new Date().toISOString().split('T')[0]; }
+function todayISO() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 function monthKey(s) { return s ? s.slice(0, 7) : ''; }
 function getMonthOpts(months) {
   // Tambahkan opsi "Semua Waktu" di baris pertama

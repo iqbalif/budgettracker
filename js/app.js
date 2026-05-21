@@ -89,12 +89,32 @@ async function refreshDataBackground() {
     // Silent re-render
     loadDashboard();
     updateHistoryUI();
+    return true;
   } catch(e) {
     showToast('Gagal load: ' + e.message);
+    return false;
   }
 }
 
 const refreshData = refreshDataBackground;
+
+async function triggerManualRefresh() {
+  const btn = document.getElementById('btn-refresh');
+  const svg = btn?.querySelector('svg');
+  
+  if (btn) btn.disabled = true;
+  if (svg) svg.classList.add('spinning');
+  
+  showToast('Menyinkronkan data dengan Google Sheets...');
+  
+  const success = await refreshDataBackground();
+  if (success) {
+    showToast('Data berhasil diperbarui ✓');
+  }
+  
+  if (btn) btn.disabled = false;
+  if (svg) svg.classList.remove('spinning');
+}
 
 // ---- ROUTING ----
 function showPage(name) {
