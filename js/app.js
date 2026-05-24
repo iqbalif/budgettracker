@@ -16,6 +16,9 @@ let inShowSubs = false;
 let outCatView = 'cat';
 let outShowSubs = false;
 let showAllOut = false;
+let billReminders = JSON.parse(localStorage.getItem('bill_reminders')) || [];
+let editReminderId = null;
+let isRemindersFetched = false;
 
 // ---- INIT ----
 window.addEventListener('DOMContentLoaded', () => {
@@ -50,6 +53,8 @@ function initApp() {
   updateHistoryUI();
   if (typeof renderBudgetRules === 'function') renderBudgetRules();
   if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
+  if (typeof renderBillReminders === 'function') renderBillReminders();
+  attachNominalFormatter('reminder-nominal');
 
   const lastSync = localStorage.getItem('last_sync_time');
   if (lastSync) {
@@ -89,6 +94,7 @@ async function refreshDataBackground() {
     localStorage.setItem('trx', JSON.stringify(trx));
     
     fetchBudgetRulesFromCloud();
+    fetchBillRemindersFromCloud();
  
     populateMonthFilters();
     
@@ -145,6 +151,26 @@ function showPage(name) {
     renderBudgetRules();
     toggleBudgetScope();
     toggleBudgetType();
+
+    // Populate Kategori & Sub Kategori Pengingat Tagihan
+    const katEl = document.getElementById('reminder-kat');
+    if (katEl) {
+      const cats = CATS_OUT || {};
+      const catKeys = Object.keys(cats);
+      const prevKat = katEl.value;
+      katEl.innerHTML = catKeys.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      if (prevKat && catKeys.includes(prevKat)) {
+        katEl.value = prevKat;
+      }
+    }
+    updateReminderSub();
+
+    if (typeof renderBillReminders === 'function') renderBillReminders();
+    if (typeof toggleReminderFreq === 'function') toggleReminderFreq();
+    const dateInput = document.getElementById('reminder-date');
+    if (dateInput && !dateInput.value) {
+      dateInput.value = todayISO();
+    }
   }
 }
 
@@ -1564,6 +1590,103 @@ async function fetchBudgetRulesFromCloud() {
   }
 }
 
+async function syncBillRemindersToCloud() {
+  if (!isRemindersFetched && billReminders.length === 1) {
+    console.warn("Sinkronisasi keluar dibatalkan demi keamanan data: Data awan belum berhasil dimuat pada sesi ini.");
+    return;
+  }
+  const url = getCfg(CFG.SCRIPT_URL);
+  if (!url) return;
+  const array2D = billReminders.map(r => [
+    r.id || '',
+    r.name || '',
+    r.nominal || 0,
+    r.freq || '',
+    r.interval || 1,
+    r.timing || '',
+    r.date || '',
+    r.kategori || '',
+    r.sub_kategori || '',
+    r.urgensi || '',
+    r.utilitas || '',
+    r.settled_history || ''
+  ]);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: "overwrite_all", sheet: "Reminders", values: array2D }),
+      mode: 'no-cors'
+    });
+  } catch(e) {
+    console.error('Failed to sync bill reminders', e);
+  }
+}
+
+async function fetchBillRemindersFromCloud() {
+  const url = getCfg(CFG.SCRIPT_URL);
+  if (!url) return;
+  try {
+    const res = await fetch(`${url}?action=get_reminders`);
+    if (!res.ok) return;
+    const json = await res.json();
+    
+    if (json && json.ok && Array.isArray(json.data)) {
+      let parsedData = [];
+      
+      if (json.data.length > 1) {
+        const rows = json.data.slice(1);
+        parsedData = rows.map(r => ({
+          id: r[0],
+          name: r[1],
+          nominal: parseFloat(r[2]) || 0,
+          freq: r[3],
+          interval: parseInt(r[4], 10) || 1,
+          timing: r[5],
+          date: (() => {
+            const d = new Date(r[6]);
+            if (!isNaN(d.getTime())) {
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, '0');
+              const day = String(d.getDate()).padStart(2, '0');
+              return `${y}-${m}-${day}`;
+            }
+            return String(r[6] || '').slice(0, 10);
+          })(),
+          kategori: r[7] || '',
+          sub_kategori: r[8] || '',
+          urgensi: r[9] || '',
+          utilitas: r[10] || '',
+          settled_history: (() => {
+            const raw = String(r[11] || '').trim();
+            // Jika kosong atau mengandung koma (multi-bulan), biarkan teks aslinya
+            if (!raw || raw.includes(',')) return raw;
+            
+            // Jika tunggal dan tidak sengaja ter-parse jadi ISO Timestamp lengkap oleh Google Sheets
+            const d = new Date(raw);
+            if (!isNaN(d.getTime()) && (raw.includes('T') || raw.length > 10)) {
+              const y = d.getFullYear();
+              const m = String(d.getMonth() + 1).padStart(2, '0');
+              const day = String(d.getDate()).padStart(2, '0');
+              return `${y}-${m}-${day}`;
+            }
+            return raw;
+          })()
+        }));
+      }
+      
+      billReminders = parsedData;
+      localStorage.setItem('bill_reminders', JSON.stringify(parsedData));
+      isRemindersFetched = true;
+      
+      if (typeof renderBillReminders === 'function') renderBillReminders();
+      if (typeof checkBudgetAlerts === 'function') checkBudgetAlerts();
+    }
+  } catch(e) {
+    console.error('Failed to fetch bill reminders', e);
+  }
+}
+
 function loadBudgeting() {
   renderBudgetRules();
   toggleBudgetScope();
@@ -1694,9 +1817,6 @@ function addBudgetRule() {
       budgetRules[idx].baseTarget = (type === 'percent' && (base === 'kategori' || base === 'sub')) ? baseTarget : null;
       budgetRules[idx].limit = limit;
     }
-    editBudgetId = null;
-    const btn = document.querySelector('#page-budgeting .btn-save');
-    if (btn) btn.textContent = 'Tambah Aturan';
   } else {
     const newRule = {
       id: 'br_' + Date.now(),
@@ -1712,10 +1832,34 @@ function addBudgetRule() {
 
   localStorage.setItem('budget_rules', JSON.stringify(budgetRules));
   
-  document.getElementById('budget-limit').value = '';
+  cancelBudgetEdit();
   renderBudgetRules();
   loadDashboard(); // Update peringatan di dashboard
   syncBudgetRulesToCloud();
+}
+
+function cancelBudgetEdit() {
+  editBudgetId = null;
+
+  document.getElementById('budget-scope').value = 'all';
+  toggleBudgetScope();
+
+  document.getElementById('budget-type').value = 'nominal';
+  toggleBudgetType();
+
+  document.getElementById('budget-limit').value = '';
+
+  const badge = document.getElementById('budget-edit-badge');
+  if (badge) badge.classList.add('hidden');
+
+  const cancelBtn = document.getElementById('btn-cancel-budget');
+  if (cancelBtn) cancelBtn.classList.add('hidden');
+
+  const formCard = document.getElementById('budget-form-card');
+  if (formCard) formCard.classList.remove('is-editing');
+
+  const btn = document.getElementById('btn-save-budget');
+  if (btn) btn.textContent = 'Tambah Aturan';
 }
 
 // 5. Render Daftar Aturan
@@ -1781,8 +1925,17 @@ function editBudgetRule(id) {
   limitInput.value = r.limit;
   formatBudgetLimit(limitInput);
   
-  const btn = document.querySelector('#page-budgeting .btn-save');
+  const btn = document.getElementById('btn-save-budget');
   if (btn) btn.textContent = 'Simpan Perubahan';
+
+  const badge = document.getElementById('budget-edit-badge');
+  if (badge) badge.classList.remove('hidden');
+
+  const cancelBtn = document.getElementById('btn-cancel-budget');
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+  const formCard = document.getElementById('budget-form-card');
+  if (formCard) formCard.classList.add('is-editing');
   
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -1803,10 +1956,11 @@ function checkBudgetAlerts() {
   const alertContainer = document.getElementById('dash-budget-alert');
   if (!alertContainer) return;
   alertContainer.innerHTML = '';
+
+  let budgetAlertsHtml = '';
+  let billRemindersHtml = '';
   
   const rules = JSON.parse(localStorage.getItem('budget_rules')) || [];
-  if (rules.length === 0) return;
-
   const monthEl = document.getElementById('dash-month-filter');
   const mon = monthEl ? monthEl.value : '';
   const rawTrx = typeof allTrx !== 'undefined' ? allTrx : [];
@@ -1818,62 +1972,722 @@ function checkBudgetAlerts() {
 
   let alertsHtml = '';
 
-  rules.forEach(r => {
-    let usage = 0;
-    
-    // Hitung Uang Keluar
-    if (r.scope === 'all') usage = totalOut;
-    else if (r.scope === 'kategori') usage = monthTrx.filter(t => t.type === 'out' && t.kategori === r.target).reduce((s, t) => s + t.nominal, 0);
-    else if (r.scope === 'sub') usage = monthTrx.filter(t => t.type === 'out' && t.sub_kategori === r.target).reduce((s, t) => s + t.nominal, 0);
+  if (mon !== 'all' && rules.length > 0) {
+    rules.forEach(r => {
+      let usage = 0;
+      
+      // Hitung Uang Keluar
+      if (r.scope === 'all') usage = totalOut;
+      else if (r.scope === 'kategori') usage = monthTrx.filter(t => t.type === 'out' && t.kategori === r.target).reduce((s, t) => s + t.nominal, 0);
+      else if (r.scope === 'sub') usage = monthTrx.filter(t => t.type === 'out' && t.sub_kategori === r.target).reduce((s, t) => s + t.nominal, 0);
 
-    // Hitung Limit Pembanding
-    let limitVal = 0;
-    if (r.type === 'nominal') limitVal = r.limit;
-    else if (r.type === 'percent') {
-      let baseVal = 0;
-      if (r.base === 'in') baseVal = totalIn;
-      else if (r.base === 'out') baseVal = totalOut;
-      else if (r.base === 'kategori') {
-        baseVal = monthTrx.filter(t => t.kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
-      } else if (r.base === 'sub') {
-        baseVal = monthTrx.filter(t => t.sub_kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
-      }
-      limitVal = (r.limit / 100) * baseVal;
-    }
-
-    // Tampilkan Peringatan
-    if (limitVal > 0) {
-      const pct = (usage / limitVal) * 100;
-      if (pct >= 80) { // Hanya muncul jika sudah >= 80%
-        const isDanger = pct >= 100;
-        const bgColor = isDanger ? '#FFF0F0' : '#FFF9E6'; // Merah Muda vs Kuning Muda
-        const color = isDanger ? 'var(--out)' : '#B8860B';
-        const icon = isDanger ? '🚨' : '⚠️';
-        const title = r.scope === 'all' ? 'Seluruh Pengeluaran' : r.target;
-        
-        let detailLimit = fmtRp(limitVal);
-        if (r.type === 'percent') {
-          let baseStr = r.base === 'in' ? 'Total Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${r.baseTarget}`;
-          detailLimit = `${fmtRp(limitVal)} (${r.limit}% dari ${baseStr})`;
+      // Hitung Limit Pembanding
+      let limitVal = 0;
+      if (r.type === 'nominal') limitVal = r.limit;
+      else if (r.type === 'percent') {
+        let baseVal = 0;
+        if (r.base === 'in') baseVal = totalIn;
+        else if (r.base === 'out') baseVal = totalOut;
+        else if (r.base === 'kategori') {
+          baseVal = monthTrx.filter(t => t.kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
+        } else if (r.base === 'sub') {
+          baseVal = monthTrx.filter(t => t.sub_kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
         }
-        
-        alertsHtml += `
-          <div style="background:${bgColor}; border:1px solid ${color}; border-radius:10px; padding:14px; margin-bottom:12px; display:flex; align-items:flex-start; gap:12px;">
-            <div style="font-size:22px;">${icon}</div>
-            <div style="flex:1;">
-              <div style="font-size:14px; font-weight:700; color:${color}; margin-bottom:4px;">${title}</div>
-              <div style="font-size:12px; color:var(--text); line-height:1.4;">Pemakaian: <b>${fmtRp(usage)}</b> dari batas ${detailLimit} - Terpakai ${pct.toFixed(1)}%</div>
-              <div style="width:100%; height:8px; background:rgba(0,0,0,0.06); border-radius:4px; margin-top:10px; overflow:hidden;">
-                <div style="height:100%; width:${Math.min(pct, 100)}%; background:${color}; border-radius:4px;"></div>
+        limitVal = (r.limit / 100) * baseVal;
+      }
+
+      // Tampilkan Peringatan
+      if (limitVal > 0) {
+        const pct = (usage / limitVal) * 100;
+        if (pct >= 80) { // Hanya muncul jika sudah >= 80%
+          const isDanger = pct >= 100;
+          const bgColor = isDanger ? '#FFF0F0' : '#FFF9E6'; // Merah Muda vs Kuning Muda
+          const color = isDanger ? 'var(--out)' : '#B8860B';
+          const icon = isDanger ? '🚨' : '⚠️';
+          const title = r.scope === 'all' ? 'Seluruh Pengeluaran' : r.target;
+          
+          let detailLimit = fmtRp(limitVal);
+          if (r.type === 'percent') {
+            let baseStr = r.base === 'in' ? 'Total Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${r.baseTarget}`;
+            detailLimit = `${fmtRp(limitVal)} (${r.limit}% dari ${baseStr})`;
+          }
+          
+          alertsHtml += `
+            <div style="background:${bgColor}; border:1px solid ${color}; border-radius:10px; padding:14px; margin-bottom:12px; display:flex; align-items:flex-start; gap:12px;">
+              <div style="font-size:22px;">${icon}</div>
+              <div style="flex:1;">
+                <div style="font-size:14px; font-weight:700; color:${color}; margin-bottom:4px;">${title}</div>
+                <div style="font-size:12px; color:var(--text); line-height:1.4;">Pemakaian: <b>${fmtRp(usage)}</b> dari batas ${detailLimit} - Terpakai ${pct.toFixed(1)}%</div>
+                <div style="width:100%; height:8px; background:rgba(0,0,0,0.06); border-radius:4px; margin-top:10px; overflow:hidden;">
+                  <div style="height:100%; width:${Math.min(pct, 100)}%; background:${color}; border-radius:4px;"></div>
+                </div>
               </div>
             </div>
-          </div>
-        `;
+          `;
+        }
       }
-    }
-  });
+    });
+  }
 
   if (alertsHtml) {
-    alertContainer.innerHTML = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Peringatan Budget</span></div>` + alertsHtml;
+    budgetAlertsHtml = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Peringatan Budget</span></div>` + alertsHtml;
   }
+
+  // Baca billReminders
+  const localReminders = JSON.parse(localStorage.getItem('bill_reminders')) || [];
+  if (localReminders.length > 0) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const cutoffDate = new Date(today);
+    cutoffDate.setDate(today.getDate() - 3);
+    cutoffDate.setHours(0, 0, 0, 0);
+
+    const reminderCards = [];
+    localReminders.forEach(r => {
+      // Calculate next due date
+      const parts = r.date.split('-');
+      if (parts.length !== 3) return;
+      const startDate = new Date(parts[0], parts[1] - 1, parts[2]);
+      startDate.setHours(0, 0, 0, 0);
+
+      let nextDue = null;
+      if (r.freq === 'Sekali Saja') {
+        nextDue = startDate;
+      } else if (r.freq === 'Harian') {
+        if (today < startDate) {
+          nextDue = startDate;
+        } else {
+          let occurrence = new Date(startDate);
+          while (occurrence < cutoffDate) {
+            occurrence.setDate(occurrence.getDate() + r.interval);
+          }
+          nextDue = occurrence;
+        }
+      } else if (r.freq === 'Mingguan') {
+        if (today < startDate) {
+          nextDue = startDate;
+        } else {
+          let currentOccurrence = new Date(startDate);
+          while (currentOccurrence < cutoffDate) {
+            currentOccurrence.setDate(currentOccurrence.getDate() + r.interval * 7);
+          }
+          nextDue = currentOccurrence;
+        }
+      } else if (r.freq === 'Bulanan') {
+        if (r.timing === 'Akhir Bulan') {
+          let currentOccurrenceMonth = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+          let occurrence = new Date(currentOccurrenceMonth.getFullYear(), currentOccurrenceMonth.getMonth() + 1, 0);
+          occurrence.setHours(0, 0, 0, 0);
+          while (occurrence < cutoffDate) {
+            currentOccurrenceMonth.setMonth(currentOccurrenceMonth.getMonth() + r.interval);
+            occurrence = new Date(currentOccurrenceMonth.getFullYear(), currentOccurrenceMonth.getMonth() + 1, 0);
+            occurrence.setHours(0, 0, 0, 0);
+          }
+          nextDue = occurrence;
+        } else {
+          const dayOfMonth = startDate.getDate();
+          let currentOccurrence = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+          let occurrence = new Date(currentOccurrence.getFullYear(), currentOccurrence.getMonth(), dayOfMonth);
+          if (occurrence.getMonth() !== currentOccurrence.getMonth()) {
+            occurrence = new Date(currentOccurrence.getFullYear(), currentOccurrence.getMonth() + 1, 0);
+          }
+          occurrence.setHours(0, 0, 0, 0);
+          while (occurrence < cutoffDate) {
+            currentOccurrence.setMonth(currentOccurrence.getMonth() + r.interval);
+            occurrence = new Date(currentOccurrence.getFullYear(), currentOccurrence.getMonth(), dayOfMonth);
+            if (occurrence.getMonth() !== currentOccurrence.getMonth()) {
+              occurrence = new Date(currentOccurrence.getFullYear(), currentOccurrence.getMonth() + 1, 0);
+            }
+            occurrence.setHours(0, 0, 0, 0);
+          }
+          nextDue = occurrence;
+        }
+      } else if (r.freq === 'Tahunan') {
+        const dayOfMonth = startDate.getDate();
+        const monthOfYear = startDate.getMonth();
+        let currentOccurrenceYear = startDate.getFullYear();
+        let occurrence = new Date(currentOccurrenceYear, monthOfYear, dayOfMonth);
+        if (occurrence.getMonth() !== monthOfYear) {
+          occurrence = new Date(currentOccurrenceYear, monthOfYear + 1, 0);
+        }
+        occurrence.setHours(0, 0, 0, 0);
+        while (occurrence < cutoffDate) {
+          currentOccurrenceYear += r.interval;
+          occurrence = new Date(currentOccurrenceYear, monthOfYear, dayOfMonth);
+          if (occurrence.getMonth() !== monthOfYear) {
+            occurrence = new Date(currentOccurrenceYear, monthOfYear + 1, 0);
+          }
+          occurrence.setHours(0, 0, 0, 0);
+        }
+        nextDue = occurrence;
+      }
+
+      if (nextDue) {
+        const diffTime = nextDue.getTime() - today.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays >= -3 && diffDays <= 3) {
+          let dueLabel = '';
+          if (diffDays === 0) dueLabel = 'Hari Ini';
+          else if (diffDays === 1) dueLabel = 'Besok';
+          else if (diffDays > 1) dueLabel = `${diffDays} hari lagi`;
+          else if (diffDays === -1) dueLabel = '1 hari yang lalu (Belum Dibayar)';
+          else if (diffDays < -1) dueLabel = `${Math.abs(diffDays)} hari yang lalu (Belum Dibayar)`;
+
+          // Generate natural text for tooltip/description
+          let descText = '';
+          if (r.freq === 'Sekali Saja') {
+            descText = `Sekali Saja`;
+          } else if (r.freq === 'Harian') {
+            descText = r.interval === 1 ? 'Setiap Hari' : `Setiap ${r.interval} Hari`;
+          } else if (r.freq === 'Mingguan') {
+            const dayName = getIndonesianDayName(r.date);
+            descText = r.interval === 1 ? `Setiap ${dayName}` : `Setiap ${r.interval} Minggu (${dayName})`;
+          } else if (r.freq === 'Bulanan') {
+            if (r.timing === 'Akhir Bulan') {
+              descText = r.interval === 1 ? 'Setiap Akhir Bulan' : `Setiap ${r.interval} Bulan di Akhir Bulan`;
+            } else {
+              const dNum = startDate.getDate();
+              descText = r.interval === 1 ? `Setiap Bulan tgl ${dNum}` : `Tiap ${r.interval} Bulan tgl ${dNum}`;
+            }
+          } else if (r.freq === 'Tahunan') {
+            const dMonth = getIndonesianDayMonth(r.date);
+            descText = r.interval === 1 ? `Setiap Tahun tgl ${dMonth}` : `Tiap ${r.interval} Tahun tgl ${dMonth}`;
+          }
+
+          const occurrenceStr = nextDue.getFullYear() + '-' + String(nextDue.getMonth() + 1).padStart(2, '0') + '-' + String(nextDue.getDate()).padStart(2, '0');
+          const historyArr = (r.settled_history || '').split(',').filter(Boolean);
+          const isSettled = historyArr.includes(occurrenceStr);
+          if (isSettled && diffDays !== 0) {
+            return;
+          }
+
+          const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
+
+          if (isSettled) {
+            const cardHtml = `
+              <div class="reminder-alert-card" style="opacity: 0.55; background: rgba(0, 0, 0, 0.02); border: 1px dashed rgba(0,0,0,0.1); border-radius: 10px; padding: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <div style="flex: 1;">
+                  <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 4px;">📅 ${escapeHtml(r.name)}</div>
+                  <div style="font-size: 12px; color: var(--text); line-height: 1.4;">Jatuh tempo: <b>${dueLabel}</b> (${descText})</div>
+                  ${nominalHtml}
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <span style="font-size: 11px; font-weight: 600; color: var(--in);">✓ Selesai Dibayar</span>
+                  <button onclick="toggleSettleReminder('${r.id}', '${occurrenceStr}')" style="background: var(--bg-soft); color: var(--text-2); border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Batal</button>
+                </div>
+              </div>
+            `;
+            reminderCards.push({ html: cardHtml, isSettled: isSettled });
+          } else {
+            const cardHtml = `
+              <div class="reminder-alert-card" style="background: rgba(122, 98, 69, 0.1); border: 1px solid rgba(122, 98, 69, 0.25); border-radius: 10px; padding: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+                <div style="flex: 1;">
+                  <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 4px;">📅 ${escapeHtml(r.name)}</div>
+                  <div style="font-size: 12px; color: var(--text); line-height: 1.4;">Jatuh tempo: <b>${dueLabel}</b> (${descText})</div>
+                  ${nominalHtml}
+                </div>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <button onclick="payBillReminder('${escapeHtml(r.name).replace(/'/g, "\\'")}', ${r.nominal}, '${escapeHtml(r.kategori || '').replace(/'/g, "\\'")}', '${escapeHtml(r.sub_kategori || '').replace(/'/g, "\\'")}', '${escapeHtml(r.urgensi || 'Kebutuhan').replace(/'/g, "\\'")}', '${escapeHtml(r.utilitas || 'Consumptive').replace(/'/g, "\\'")}')" style="background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Input</button>
+                  <button onclick="toggleSettleReminder('${r.id}', '${occurrenceStr}')" style="background: #EAF3E1; color: var(--in); border: 1px solid rgba(61,107,64,0.3); padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Selesai</button>
+                </div>
+              </div>
+            `;
+            reminderCards.push({ html: cardHtml, isSettled: isSettled });
+          }
+        }
+      }
+    });
+
+    // Sort so that isSettled: true is pushed to the bottom
+    reminderCards.sort((a, b) => {
+      if (a.isSettled === b.isSettled) return 0;
+      return a.isSettled ? 1 : -1;
+    });
+
+    const remindersHtml = reminderCards.map(c => c.html).join('');
+    if (remindersHtml) {
+      const headerHtml = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Pengingat Tagihan Terdekat</span></div>`;
+      billRemindersHtml = headerHtml + remindersHtml;
+    }
+  }
+
+  alertContainer.innerHTML = billRemindersHtml + budgetAlertsHtml;
+}
+
+// ============================================
+// PENGINGAT TAGIHAN (BILL REMINDERS)
+// ============================================
+
+function getIndonesianDayName(dateString) {
+  if (!dateString) return '';
+  const parts = dateString.split('-');
+  if (parts.length !== 3) return '';
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+  return days[date.getDay()];
+}
+
+function getIndonesianDayMonth(dateString) {
+  if (!dateString) return '';
+  const parts = dateString.split('-');
+  if (parts.length !== 3) return '';
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+  return `${date.getDate()} ${months[date.getMonth()]}`;
+}
+
+function updateReminderSub() {
+  const katEl = document.getElementById('reminder-kat');
+  const subEl = document.getElementById('reminder-sub');
+  if (!katEl || !subEl) return;
+
+  const cats = CATS_OUT || {};
+  const catKeys = Object.keys(cats);
+
+  // If category dropdown is empty, populate it
+  if (!katEl.options.length) {
+    katEl.innerHTML = catKeys.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  }
+
+  const activeKat = katEl.value || catKeys[0];
+  const subs = cats[activeKat] || [];
+  const prevSub = subEl.value;
+
+  subEl.innerHTML = subs.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if (subs.length) {
+    if (subs.includes(prevSub)) {
+      subEl.value = prevSub;
+    } else {
+      subEl.value = subs[0];
+    }
+  }
+}
+
+function toggleReminderFreq() {
+  const freqEl = document.getElementById('reminder-freq');
+  if (!freqEl) return;
+  const freq = freqEl.value;
+
+  const customToggleRow = document.getElementById('reminder-custom-toggle-row');
+  const customToggle = document.getElementById('reminder-custom-toggle');
+
+  if (freq === 'Sekali Saja') {
+    if (customToggleRow) customToggleRow.classList.add('hidden');
+    if (customToggle) customToggle.checked = false;
+  } else {
+    if (customToggleRow) customToggleRow.classList.remove('hidden');
+  }
+
+  const isCustom = customToggle ? customToggle.checked : false;
+
+  const intervalRow = document.getElementById('reminder-interval-row');
+  const intervalLabel = document.getElementById('reminder-interval-label');
+  const timingRow = document.getElementById('reminder-timing-row');
+  const timingSelect = document.getElementById('reminder-timing');
+  const dateRow = document.getElementById('reminder-date-row');
+
+  // Rule 1: Interval Row
+  if (freq !== 'Sekali Saja' && isCustom) {
+    if (intervalRow) intervalRow.classList.remove('hidden');
+    if (intervalLabel) {
+      if (freq === 'Harian') intervalLabel.textContent = 'Hari';
+      else if (freq === 'Mingguan') intervalLabel.textContent = 'Minggu';
+      else if (freq === 'Bulanan') intervalLabel.textContent = 'Bulan';
+      else if (freq === 'Tahunan') intervalLabel.textContent = 'Tahun';
+    }
+  } else {
+    if (intervalRow) intervalRow.classList.add('hidden');
+  }
+
+  // Rule 2: Timing Row
+  if (freq === 'Bulanan') {
+    if (timingRow) {
+      timingRow.classList.remove('hidden');
+      const label = timingRow.querySelector('label');
+      if (label) label.textContent = 'Opsi Waktu';
+      if (timingSelect) {
+        const prevVal = timingSelect.value;
+        const options = ['Tanggal Spesifik', 'Akhir Bulan'];
+        timingSelect.innerHTML = options.map(o => `<option value="${o}">${o}</option>`).join('');
+        if (options.includes(prevVal)) {
+          timingSelect.value = prevVal;
+        }
+      }
+    }
+  } else if (freq === 'Tahunan') {
+    if (timingRow) timingRow.classList.add('hidden');
+    if (dateRow) dateRow.classList.remove('hidden');
+  } else {
+    if (timingRow) timingRow.classList.add('hidden');
+  }
+
+  // Rule 3: Date Row (only hidden if timing is "Akhir Bulan" and timing row is visible)
+  const isTimingVisible = timingRow && !timingRow.classList.contains('hidden');
+  const timingVal = (isTimingVisible && timingSelect) ? timingSelect.value : 'Tanggal Spesifik';
+
+  if (freq !== 'Tahunan') {
+    if (timingVal === 'Akhir Bulan') {
+      if (dateRow) dateRow.classList.add('hidden');
+    } else {
+      if (dateRow) dateRow.classList.remove('hidden');
+    }
+  }
+
+  const metaToggle = document.getElementById('reminder-meta-toggle');
+  const metadataSection = document.getElementById('reminder-metadata-section');
+  if (metaToggle && metadataSection) {
+    if (metaToggle.checked) {
+      metadataSection.classList.remove('hidden');
+    } else {
+      metadataSection.classList.add('hidden');
+    }
+  }
+}
+
+function addBillReminder() {
+  const nameInput = document.getElementById('reminder-name');
+  const nominalInput = document.getElementById('reminder-nominal');
+  const freqSelect = document.getElementById('reminder-freq');
+  const intervalInput = document.getElementById('reminder-interval');
+  const timingSelect = document.getElementById('reminder-timing');
+  const dateInput = document.getElementById('reminder-date');
+  const customToggle = document.getElementById('reminder-custom-toggle');
+
+  const katSelect = document.getElementById('reminder-kat');
+  const subSelect = document.getElementById('reminder-sub');
+  const urgSelect = document.getElementById('reminder-urg');
+  const utilSelect = document.getElementById('reminder-util');
+
+  const name = nameInput ? nameInput.value.trim() : '';
+  const nominal = nominalInput ? parseNominalInputValue(nominalInput.value) : 0;
+  const freq = freqSelect ? freqSelect.value : 'Sekali Saja';
+
+  const isCustom = customToggle ? customToggle.checked : false;
+  let interval = 1;
+  if (freq !== 'Sekali Saja' && isCustom && intervalInput) {
+    interval = Math.max(1, parseInt(intervalInput.value, 10) || 1);
+  }
+
+  const timingRow = document.getElementById('reminder-timing-row');
+  const isTimingVisible = timingRow && !timingRow.classList.contains('hidden');
+  const timing = (isTimingVisible && timingSelect) ? timingSelect.value : 'Tanggal Spesifik';
+
+  const dateRow = document.getElementById('reminder-date-row');
+  const isDateHidden = dateRow ? dateRow.classList.contains('hidden') : false;
+  let date = '';
+  if (isDateHidden) {
+    date = todayISO();
+  } else {
+    date = dateInput ? dateInput.value : '';
+  }
+
+  const metaToggle = document.getElementById('reminder-meta-toggle');
+  const isMetaEnabled = metaToggle ? metaToggle.checked : false;
+
+  let kategori = katSelect ? katSelect.value : '';
+  let sub_kategori = subSelect ? subSelect.value : '';
+  let urgensi = urgSelect ? urgSelect.value : 'Kebutuhan';
+  let utilitas = utilSelect ? utilSelect.value : 'Consumptive';
+
+  if (!isMetaEnabled) {
+    kategori = "";
+    sub_kategori = "";
+    urgensi = "";
+    utilitas = "";
+  }
+
+  if (!name) {
+    showToast('Nama tagihan harus diisi');
+    return;
+  }
+  if (!date) {
+    showToast('Pilih tanggal jatuh tempo / mulai');
+    return;
+  }
+
+  if (editReminderId) {
+    const rem = billReminders.find(x => x.id === editReminderId);
+    if (rem) {
+      rem.name = name;
+      rem.nominal = nominal;
+      rem.freq = freq;
+      rem.interval = interval;
+      rem.timing = timing;
+      rem.date = date;
+      rem.kategori = kategori;
+      rem.sub_kategori = sub_kategori;
+      rem.urgensi = urgensi;
+      rem.utilitas = utilitas;
+    }
+    localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
+    cancelReminderEdit();
+    showToast('Pengingat tagihan berhasil diperbarui ✓');
+  } else {
+    const newReminder = {
+      id: 'rem_' + Date.now(),
+      name: name,
+      nominal: nominal,
+      freq: freq,
+      interval: interval,
+      timing: timing,
+      date: date,
+      kategori: kategori,
+      sub_kategori: sub_kategori,
+      urgensi: urgensi,
+      utilitas: utilitas
+    };
+    billReminders.push(newReminder);
+    localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
+    cancelReminderEdit();
+    showToast('Pengingat tagihan berhasil ditambahkan ✓');
+  }
+
+  syncBillRemindersToCloud();
+  renderBillReminders();
+}
+
+function cancelReminderEdit() {
+  editReminderId = null;
+
+  const nameInput = document.getElementById('reminder-name');
+  const nominalInput = document.getElementById('reminder-nominal');
+  const freqSelect = document.getElementById('reminder-freq');
+  const intervalInput = document.getElementById('reminder-interval');
+  const dateInput = document.getElementById('reminder-date');
+  const customToggle = document.getElementById('reminder-custom-toggle');
+
+  const katSelect = document.getElementById('reminder-kat');
+  const urgSelect = document.getElementById('reminder-urg');
+  const utilSelect = document.getElementById('reminder-util');
+
+  if (nameInput) nameInput.value = '';
+  if (nominalInput) nominalInput.value = '';
+  if (intervalInput) intervalInput.value = '1';
+  if (dateInput) dateInput.value = todayISO();
+  if (customToggle) customToggle.checked = false;
+
+  const metaToggle = document.getElementById('reminder-meta-toggle');
+  if (metaToggle) metaToggle.checked = false;
+
+  if (freqSelect) freqSelect.value = 'Sekali Saja';
+  toggleReminderFreq();
+
+  if (katSelect && katSelect.options.length > 0) {
+    katSelect.selectedIndex = 0;
+    updateReminderSub();
+  }
+  if (urgSelect) urgSelect.value = 'Kebutuhan';
+  if (utilSelect) utilSelect.value = 'Consumptive';
+
+  const badge = document.getElementById('reminder-edit-badge');
+  if (badge) badge.classList.add('hidden');
+
+  const cancelBtn = document.getElementById('btn-cancel-reminder');
+  if (cancelBtn) cancelBtn.classList.add('hidden');
+
+  const formCard = document.getElementById('reminder-form-card');
+  if (formCard) formCard.classList.remove('is-editing');
+
+  const btn = document.getElementById('btn-save-reminder');
+  if (btn) btn.textContent = 'Tambah Pengingat';
+}
+
+function deleteBillReminder(id) {
+  billReminders = billReminders.filter(r => r.id !== id);
+  localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
+  syncBillRemindersToCloud();
+  if (editReminderId === id) {
+    cancelReminderEdit();
+  }
+  renderBillReminders();
+  showToast('Pengingat tagihan berhasil dihapus');
+}
+
+function renderBillReminders() {
+  const list = document.getElementById('bill-reminders-list');
+  if (!list) return;
+
+  const todayStr = todayISO();
+
+  if (billReminders.length === 0) {
+    list.innerHTML = '<div style="text-align:center;color:var(--text-3);font-size:13px;padding:20px;">Belum ada pengingat tagihan.</div>';
+    return;
+  }
+
+  list.innerHTML = billReminders.map(r => {
+    let descText = '';
+    const parts = r.date.split('-');
+    const dayNum = parts.length === 3 ? parseInt(parts[2], 10) : '';
+
+    let overdueBadge = '';
+    if (r.freq === 'Sekali Saja' && r.date < todayStr) {
+      overdueBadge = `<span style="background: rgba(196, 118, 58, 0.12); color: var(--out); font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-left: 6px; display: inline-block;">Sudah Lewat</span>`;
+    }
+
+    if (r.freq === 'Sekali Saja') {
+      descText = `Sekali: ${fmtDate(r.date)}`;
+    } else if (r.freq === 'Harian') {
+      if (r.interval === 1) {
+        descText = 'Rutin: Setiap Hari';
+      } else {
+        descText = `Rutin: Setiap ${r.interval} Hari sekali`;
+      }
+    } else if (r.freq === 'Mingguan') {
+      const dayName = getIndonesianDayName(r.date);
+      if (r.interval === 1) {
+        descText = `Rutin: Setiap ${dayName}`;
+      } else {
+        descText = `Rutin: Setiap ${r.interval} Minggu sekali pada hari ${dayName}`;
+      }
+    } else if (r.freq === 'Bulanan') {
+      if (r.timing === 'Akhir Bulan') {
+        if (r.interval === 1) {
+          descText = 'Rutin: Setiap Akhir Bulan';
+        } else {
+          descText = `Rutin: Tiap ${r.interval} Bulan di Akhir Bulan`;
+        }
+      } else { // Tanggal Spesifik
+        if (r.interval === 1) {
+          descText = `Rutin: Setiap Bulan tanggal ${dayNum}`;
+        } else {
+          descText = `Rutin: Tiap ${r.interval} Bulan sekali tanggal ${dayNum}`;
+        }
+      }
+    } else if (r.freq === 'Tahunan') {
+      const dayMonth = getIndonesianDayMonth(r.date);
+      if (r.interval === 1) {
+        descText = `Rutin: Setiap Tahun tanggal ${dayMonth}`;
+      } else {
+        descText = `Rutin: Tiap ${r.interval} Tahun sekali tanggal ${dayMonth}`;
+      }
+    }
+
+    const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
+
+    return `
+      <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:10px;">
+        <div>
+          <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px;">${escapeHtml(r.name)}</div>
+          <div style="font-size:12px; color:var(--text-light);">${descText}${overdueBadge}</div>
+          ${nominalHtml}
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button onclick="editBillReminder('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Edit</button>
+          <button onclick="deleteBillReminder('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Hapus</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function editBillReminder(id) {
+  const r = billReminders.find(x => x.id === id);
+  if (!r) return;
+
+  editReminderId = id;
+
+  const nameInput = document.getElementById('reminder-name');
+  const nominalInput = document.getElementById('reminder-nominal');
+  const freqSelect = document.getElementById('reminder-freq');
+  const intervalInput = document.getElementById('reminder-interval');
+  const timingSelect = document.getElementById('reminder-timing');
+  const dateInput = document.getElementById('reminder-date');
+  const customToggle = document.getElementById('reminder-custom-toggle');
+
+  const katSelect = document.getElementById('reminder-kat');
+  const subSelect = document.getElementById('reminder-sub');
+  const urgSelect = document.getElementById('reminder-urg');
+  const utilSelect = document.getElementById('reminder-util');
+
+  if (nameInput) nameInput.value = r.name || '';
+  if (nominalInput) {
+    nominalInput.value = r.nominal > 0 ? formatNominalInputValue(r.nominal.toString()) : '';
+  }
+  if (freqSelect) freqSelect.value = r.freq || 'Sekali Saja';
+  if (customToggle) customToggle.checked = (r.interval > 1);
+  if (intervalInput) intervalInput.value = r.interval || 1;
+
+  toggleReminderFreq();
+
+  if (timingSelect && r.timing) timingSelect.value = r.timing;
+  toggleReminderFreq();
+
+  if (dateInput) dateInput.value = r.date || '';
+
+  if (katSelect && r.kategori) {
+    katSelect.value = r.kategori;
+    updateReminderSub();
+  }
+  if (subSelect && r.sub_kategori) {
+    subSelect.value = r.sub_kategori;
+  }
+  if (urgSelect && r.urgensi) urgSelect.value = r.urgensi;
+  if (utilSelect && r.utilitas) utilSelect.value = r.utilitas;
+
+  const metaToggle = document.getElementById('reminder-meta-toggle');
+  if (metaToggle) {
+    metaToggle.checked = (r.kategori && r.kategori !== "");
+  }
+
+  const btn = document.getElementById('btn-save-reminder');
+  if (btn) btn.textContent = 'Simpan Perubahan';
+
+  const badge = document.getElementById('reminder-edit-badge');
+  if (badge) badge.classList.remove('hidden');
+
+  const cancelBtn = document.getElementById('btn-cancel-reminder');
+  if (cancelBtn) cancelBtn.classList.remove('hidden');
+
+  const formCard = document.getElementById('reminder-form-card');
+  if (formCard) formCard.classList.add('is-editing');
+
+  toggleReminderFreq();
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function payBillReminder(name, nominal, kategori, sub_kategori, urgensi, utilitas) {
+  showPage('input');
+  switchInputTab('manual');
+  setManualType('out');
+  const descInput = document.getElementById('m-desc');
+  const nominalInput = document.getElementById('m-nominal');
+  if (descInput) descInput.value = name;
+  if (nominalInput) {
+    nominalInput.value = nominal > 0 ? formatNominalInputValue(nominal.toString()) : '';
+    attachNominalFormatter(nominalInput);
+  }
+
+  const katSelect = document.getElementById('m-kat');
+  const subSelect = document.getElementById('m-sub');
+  const urgSelect = document.getElementById('m-urg');
+  const utilSelect = document.getElementById('m-util');
+
+  if (katSelect && kategori) {
+    katSelect.value = kategori;
+    updateManualKat();
+  }
+  if (subSelect && sub_kategori) {
+    subSelect.value = sub_kategori;
+  }
+  if (urgSelect && urgensi) urgSelect.value = urgensi;
+  if (utilSelect && utilitas) utilSelect.value = utilitas;
+}
+
+function toggleSettleReminder(reminderId, dateStr) {
+  const rem = billReminders.find(r => r.id === reminderId);
+  if (!rem) return;
+  let historyArr = (rem.settled_history || '').split(',').filter(Boolean);
+  const idx = historyArr.indexOf(dateStr);
+  if (idx === -1) {
+    historyArr.push(dateStr);
+  } else {
+    historyArr.splice(idx, 1);
+  }
+  rem.settled_history = historyArr.join(',');
+  localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
+  syncBillRemindersToCloud();
+  loadDashboard();
 }

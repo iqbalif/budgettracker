@@ -10,6 +10,7 @@ Aplikasi budget tracker pribadi berbasis web (PWA) yang terhubung ke Google Shee
 - Total pemasukan & pengeluaran bulan ini, lengkap dengan indikator perubahan vs bulan lalu (↑/↓ %)
 - Persentase pengeluaran dari pemasukan ("Pengeluaran X% dari pemasukan")
 - Info H-X menuju akhir bulan & rata-rata pengeluaran harian
+- Kartu pengingat tagihan aktif di bagian paling atas dengan tombol Input (auto-fill form) dan Selesai
 - Rekap pemasukan per kategori dengan toggle Kategori/Sub dan tampilan Ringkas/Rincian
 - Rekap pengeluaran per kategori dengan fitur yang sama + shortcut langsung ke Riwayat
 - Matrix 2×2 Utilitas × Urgensi (Consumptive/Productive × Kebutuhan/Keinginan)
@@ -30,13 +31,21 @@ Aplikasi budget tracker pribadi berbasis web (PWA) yang terhubung ke Google Shee
 - Filter kategori langsung dari Dashboard (tap "Lihat di Riwayat" pada rekap)
 - Export ke CSV
 
-### Budgeting *(baru)*
+### Budgeting
 - **Multi-Scope:** Aturan anggaran bisa diset untuk seluruh pengeluaran, per kategori, atau per sub-kategori
 - **Nominal Tetap (Fixed):** Mematok batas angka pasti, misal maksimal Rp 1.500.000 untuk kategori Makan
 - **Persentase Dinamis:** Batas berbasis persentase yang mengikuti total pemasukan, total pengeluaran, atau nominal kategori/sub-kategori lain
 - **Indikator Waspada (80%):** Peringatan kuning ⚠️ saat pengeluaran mendekati batas
 - **Indikator Overbudget (100%):** Peringatan merah 🚨 saat batas sudah terlampaui, disertai progress bar dan detail kalkulasi
 - Aturan tersinkronisasi otomatis ke sheet `BudgetRules` di Google Sheets — lintas perangkat, tidak hilang saat cache dibersihkan
+
+### Pengingat Tagihan *(baru)*
+- **Frekuensi Fleksibel:** Mendukung tagihan sekali saja, harian, mingguan, bulanan (termasuk opsi akhir bulan), hingga tahunan dengan interval kustom
+- **Auto-Fill ke Form Input:** Setiap pengingat bisa dihubungkan ke metadata transaksi (Kategori, Sub, Urgensi, Utilitas) — klik tombol "Input" di kartu pengingat dan seluruh form transaksi manual langsung terisi otomatis
+- **Tombol Selesai:** Tandai tagihan sebagai lunas untuk bulan ini tanpa harus mencatat transaksi; status pelunasan tersinkronisasi lintas perangkat tanpa membutuhkan sheet atau kolom tambahan
+- **Badge "Sudah Lewat":** Penanda visual merah pada tagihan sekali saja yang tanggalnya sudah kedaluwarsa
+- **Sistem Pengaman Cloud (Fail-Safe):** Proteksi yang mencegah browser baru menimpa data cloud jika sinkronisasi belum selesai dimuat saat startup
+- Konfigurasi pengingat tersimpan di sheet `Reminders` di Google Sheets — tidak hilang meski ganti perangkat atau bersihkan cache
 
 ### Pengaturan
 - Semua credentials disimpan di localStorage browser — tidak pernah dikirim ke server manapun selain Google & Gemini
@@ -84,7 +93,7 @@ Klik **File → Make a copy** untuk menyalin ke Google Drive kamu sendiri.
 
 ## Format Google Sheets
 
-Spreadsheet membutuhkan lima sheet berikut:
+Spreadsheet membutuhkan tujuh sheet berikut:
 
 ### Sheet: `Pemasukan`
 | A | B | C | D | E | F | G |
@@ -113,12 +122,21 @@ Digunakan untuk dropdown kategori di form input. Format 2 kolom:
 
 Aplikasi membaca kategori ini secara otomatis saat startup — tidak perlu edit kode jika kamu menambah atau mengubah kategori.
 
-### Sheet: `BudgetRules` *(baru)*
-Digunakan untuk menyimpan aturan anggaran. Aplikasi mengelola sheet ini secara otomatis — kamu tidak perlu mengisinya manual.
+### Sheet: `BudgetRules`
+Digunakan untuk menyimpan aturan anggaran. Aplikasi mengelola sheet ini secara otomatis — tidak perlu diisi manual.
 
 | A | B | C | D | E | F | G |
 |---|---|---|---|---|---|---|
 | ID | Scope | Target | Type | Base | BaseTarget | Limit |
+
+> Jangan hapus baris header. Aplikasi membaca data mulai dari baris kedua.
+
+### Sheet: `Reminders` *(baru)*
+Digunakan untuk menyimpan konfigurasi pengingat tagihan berkala beserta log riwayat pelunasannya. Aplikasi mengelola sheet ini secara otomatis — tidak perlu diisi manual.
+
+| A | B | C | D | E | F | G | H | I | J | K | L |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| ID | Name | Nominal | Freq | Interval | Timing | Date | Kategori | Sub Kategori | Urgensi | Utilitas | Settled History |
 
 > Jangan hapus baris header. Aplikasi membaca data mulai dari baris kedua.
 
@@ -152,7 +170,7 @@ Lihat bagian setup di bawah.
 
 ## Setup Google Apps Script
 
-Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, menghapus transaksi, dan menyinkronkan aturan budgeting, kamu perlu Google Apps Script yang di-deploy sebagai Web App.
+Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, menghapus transaksi, serta menyinkronkan aturan budgeting dan pengingat tagihan, kamu perlu Google Apps Script yang di-deploy sebagai Web App.
 
 ### Kode Apps Script
 
@@ -214,7 +232,7 @@ function handleWebAppRequest(data) {
       sheet.getRange(data.row, 1, 1, sheet.getLastColumn()).clearContent();
 
     } else if (data.action === "overwrite_all") {
-      // Digunakan oleh modul Budgeting untuk menyimpan seluruh aturan sekaligus
+      // Digunakan oleh modul Budgeting & Pengingat untuk menyimpan seluruh data sekaligus
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
         sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
@@ -245,10 +263,12 @@ function findFirstEmptyRowByColumn(sheet, colIndex) {
 }
 
 function doGet(e) {
-  // Endpoint untuk mengambil aturan budgeting dari aplikasi
-  if (e.parameter.action === "get_rules") {
+  var action = e.parameter.action;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Ambil aturan budgeting
+  if (action === "get_rules") {
     try {
-      var ss = SpreadsheetApp.openById(spreadsheetId);
       var sheet = ss.getSheetByName("BudgetRules");
       var data = sheet.getDataRange().getValues();
       return ContentService.createTextOutput(JSON.stringify({ ok: true, data: data }))
@@ -258,6 +278,20 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
   }
+
+  // Ambil konfigurasi pengingat tagihan
+  if (action === "get_reminders") {
+    try {
+      var sheet = ss.getSheetByName("Reminders");
+      var data = sheet.getDataRange().getValues();
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, data: data }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch(err) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   return ContentService.createTextOutput("Budget Tracker Backend is Active.")
     .setMimeType(ContentService.MimeType.TEXT);
 }
@@ -300,4 +334,5 @@ Di Chrome (Android) atau Safari (iOS): buka URL aplikasi → menu browser → **
 - Gunakan mode AI untuk input cepat: ketik saja "makan siang padang 35rb" dan biarkan Gemini yang mengklasifikasikan
 - Filter bulan di Dashboard dan Riwayat bisa diset ke "Semua Waktu" untuk melihat akumulasi seluruh data
 - Export CSV tersedia di halaman Riwayat untuk analisis lebih lanjut di Excel/Sheets
-- Aturan budgeting tersimpan di Google Sheets (`BudgetRules`) sehingga tetap ada meski cache browser dibersihkan atau kamu ganti perangkat
+- Aturan budgeting dan konfigurasi pengingat tersimpan di Google Sheets sehingga tetap ada meski cache browser dibersihkan atau kamu ganti perangkat
+- Klik tombol "Input" di kartu pengingat untuk langsung membuka form transaksi manual dengan semua field sudah terisi — cocok untuk tagihan rutin yang nominalnya selalu sama
