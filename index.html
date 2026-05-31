@@ -30,6 +30,51 @@
       border-color: var(--accent) !important;
       box-shadow: 0 0 8px rgba(139, 115, 85, 0.15) !important;
     }
+    
+    /* Gaya Kustom Kotak Checkbox agar Muncul Ceklis Tegas */
+    #reminder-form-card input[type="checkbox"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px !important;
+      height: 18px !important;
+      border: 2px solid var(--border) !important;
+      border-radius: 4px !important;
+      background: #fff !important;
+      outline: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      flex-shrink: 0;
+      margin: 0 !important;
+    }
+
+    /* Saat Checkbox Terpilih (Checked) */
+    #reminder-form-card input[type="checkbox"]:checked {
+      background-color: var(--accent) !important;
+      border-color: var(--accent) !important;
+    }
+
+    /* Memunculkan Tanda Ceklis Putih Grafis yang Simetris & Presisi di Tengah */
+    #reminder-form-card input[type="checkbox"]:checked::after {
+      content: "" !important; /* Wajib kosongkan konten teks */
+      width: 10px !important; /* Lebar ceklis */
+      height: 5px !important;  /* Tinggi ceklis */
+      border-left: 2px solid #fff !important; /* Garis tebal sisi kiri */
+      border-bottom: 2px solid #fff !important; /* Garis tebal sisi bawah */
+      transform: rotate(-45deg) !important; /* Putar -45 derajat untuk bentuk L */
+      
+      /* Gunakan posisi relatif dengan margin-top adjustment agar presisi nengah vertikal */
+      position: relative !important;
+      margin-top: -3px !important; /* Ini adalah kunci adjustment agar ceklis yang diputar nengah vertikal */
+      
+      /* REMOVE THESE (Hapus absolute positioning dan offsets lama yang menyebabkan miring) */
+      top: 0 !important;
+      left: 0 !important;
+      display: block !important;
+    }
   </style>
 </head>
 <body>

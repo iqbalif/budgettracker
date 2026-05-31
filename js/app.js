@@ -2127,7 +2127,7 @@ function checkBudgetAlerts() {
         const diffTime = nextDue.getTime() - today.getTime();
         const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
-        if (diffDays >= -3 && diffDays <= 3) {
+        if (diffDays >= -3 && diffDays <= 1) {
           let dueLabel = '';
           if (diffDays === 0) dueLabel = 'Hari Ini';
           else if (diffDays === 1) dueLabel = 'Besok';
@@ -2516,70 +2516,114 @@ function renderBillReminders() {
     return;
   }
 
-  list.innerHTML = billReminders.map(r => {
-    let descText = '';
-    const parts = r.date.split('-');
-    const dayNum = parts.length === 3 ? parseInt(parts[2], 10) : '';
+  // 1. LOGIKA PENGELOMPOKAN (GROUPING)
+  const grouped = {};
+  billReminders.forEach(r => {
+    const freq = r.freq || 'Sekali Saja';
+    if (!grouped[freq]) {
+      grouped[freq] = [];
+    }
+    grouped[freq].push(r);
+  });
 
-    let overdueBadge = '';
-    if (r.freq === 'Sekali Saja' && r.date < todayStr) {
-      overdueBadge = `<span style="background: rgba(196, 118, 58, 0.12); color: var(--out); font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-left: 6px; display: inline-block;">Sudah Lewat</span>`;
+  // 2. URUTAN IMPLEMENTASI TAMPILAN
+  const groupOrder = ["Sekali Saja", "Harian", "Mingguan", "Bulanan", "Tahunan"];
+  let isFirst = true;
+  let finalHtml = '';
+
+  groupOrder.forEach(freq => {
+    const items = grouped[freq] || [];
+    if (items.length === 0) return;
+
+    // 3. LOGIKA URUTAN INTERNAL (SORTING)
+    if (freq === 'Bulanan') {
+      const getDayVal = (r) => {
+        if (r.timing === 'Akhir Bulan') return 99;
+        const parts = r.date.split('-');
+        return parts.length === 3 ? parseInt(parts[2], 10) : 0;
+      };
+      
+      // Urutkan: Reguler (interval === 1) di atas, Kustom (interval > 1) di bawah.
+      // Jika tipe intervalnya sama, urutkan kronologis berdasarkan hari jatuh tempo.
+      items.sort((a, b) => {
+        const isCustomA = (a.interval > 1) ? 1 : 0;
+        const isCustomB = (b.interval > 1) ? 1 : 0;
+        
+        if (isCustomA !== isCustomB) {
+          return isCustomA - isCustomB; // 0 (reguler) akan naik ke atas, 1 (kustom) turun ke bawah
+        }
+        return getDayVal(a) - getDayVal(b); // Urutan kronologis internal
+      });
+    } else {
+      items.sort((a, b) => a.date.localeCompare(b.date));
     }
 
-    if (r.freq === 'Sekali Saja') {
-      descText = `Sekali: ${fmtDate(r.date)}`;
-    } else if (r.freq === 'Harian') {
-      if (r.interval === 1) {
-        descText = 'Rutin: Setiap Hari';
-      } else {
-        descText = `Rutin: Setiap ${r.interval} Hari sekali`;
-      }
-    } else if (r.freq === 'Mingguan') {
-      const dayName = getIndonesianDayName(r.date);
-      if (r.interval === 1) {
-        descText = `Rutin: Setiap ${dayName}`;
-      } else {
-        descText = `Rutin: Setiap ${r.interval} Minggu sekali pada hari ${dayName}`;
-      }
-    } else if (r.freq === 'Bulanan') {
-      if (r.timing === 'Akhir Bulan') {
-        if (r.interval === 1) {
-          descText = 'Rutin: Setiap Akhir Bulan';
-        } else {
-          descText = `Rutin: Tiap ${r.interval} Bulan di Akhir Bulan`;
-        }
-      } else { // Tanggal Spesifik
-        if (r.interval === 1) {
-          descText = `Rutin: Setiap Bulan tanggal ${dayNum}`;
-        } else {
-          descText = `Rutin: Tiap ${r.interval} Bulan sekali tanggal ${dayNum}`;
-        }
-      }
-    } else if (r.freq === 'Tahunan') {
-      const dayMonth = getIndonesianDayMonth(r.date);
-      if (r.interval === 1) {
-        descText = `Rutin: Setiap Tahun tanggal ${dayMonth}`;
-      } else {
-        descText = `Rutin: Tiap ${r.interval} Tahun sekali tanggal ${dayMonth}`;
-      }
-    }
+    // 4. SUB-JUDUL KELOMPOK (HEADER HTML)
+    finalHtml += `<div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-top: ${isFirst ? '12px' : '22px'}; margin-bottom: 8px;">📌 ${freq}</div>`;
+    isFirst = false;
 
-    const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
+    // Render cards inside group
+    const groupHtml = items.map(r => {
+      let descText = '';
+      const parts = r.date.split('-');
+      const dayNum = parts.length === 3 ? parseInt(parts[2], 10) : '';
 
-    return `
-      <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:10px;">
-        <div>
-          <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px;">${escapeHtml(r.name)}</div>
-          <div style="font-size:12px; color:var(--text-light);">${descText}${overdueBadge}</div>
-          ${nominalHtml}
+      let overdueBadge = '';
+      if (r.freq === 'Sekali Saja' && r.date < todayStr) {
+        overdueBadge = `<span style="background: rgba(196, 118, 58, 0.12); color: var(--out); font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-left: 6px; display: inline-block;">Sudah Lewat</span>`;
+      }
+
+      let customCycleBadge = '';
+      if (r.interval > 1) {
+        let unitLabel = 'Periode';
+        if (r.freq === 'Harian') unitLabel = 'Hari';
+        else if (r.freq === 'Mingguan') unitLabel = 'Minggu';
+        else if (r.freq === 'Bulanan') unitLabel = 'Bulan';
+        else if (r.freq === 'Tahunan') unitLabel = 'Tahun';
+        
+        customCycleBadge = `<span style="background: rgba(139, 115, 85, 0.1); color: var(--accent); font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.03em;">Tiap ${r.interval} ${unitLabel}</span>`;
+      }
+
+      if (r.freq === 'Sekali Saja') {
+        descText = `Jatuh tempo: ${fmtDate(r.date)}`;
+      } else if (r.freq === 'Harian') {
+        descText = `Berulang setiap hari`;
+      } else if (r.freq === 'Mingguan') {
+        const dayName = getIndonesianDayName(r.date);
+        descText = `Setiap hari ${dayName}`;
+      } else if (r.freq === 'Bulanan') {
+        if (r.timing === 'Akhir Bulan') {
+          descText = 'Setiap akhir bulan';
+        } else {
+          descText = `Setiap tanggal ${dayNum}`;
+        }
+      } else if (r.freq === 'Tahunan') {
+        const dayMonth = getIndonesianDayMonth(r.date);
+        descText = `Setiap tanggal ${dayMonth}`;
+      }
+
+      const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
+
+      return `
+        <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:10px;">
+          <div>
+            <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px; display: flex; align-items: center; flex-wrap: wrap;">${escapeHtml(r.name)}${customCycleBadge}</div>
+            <div style="font-size:12px; color:var(--text-light);">${descText}${overdueBadge}</div>
+            ${nominalHtml}
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="editBillReminder('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Edit</button>
+            <button onclick="deleteBillReminder('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Hapus</button>
+          </div>
         </div>
-        <div style="display:flex; gap:6px;">
-          <button onclick="editBillReminder('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Edit</button>
-          <button onclick="deleteBillReminder('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Hapus</button>
-        </div>
-      </div>
-    `;
-  }).join('');
+      `;
+    }).join('');
+
+    finalHtml += groupHtml;
+  });
+
+  // 5. SATUKAN OUTPUT TEMPLATE NYA
+  list.innerHTML = finalHtml;
 }
 
 function editBillReminder(id) {
