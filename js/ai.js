@@ -6,9 +6,9 @@
 const AI = (() => {
 
   function systemPrompt() {
-    return `Kamu adalah asisten budget tracker pribadi. User mendeskripsikan transaksi keuangan dalam bahasa Indonesia (informal/formal/campur).
+    return `Kamu adalah asisten budget tracker pribadi profesional. User mendeskripsikan transaksi keuangan dalam bahasa Indonesia (informal/formal/slang/campur).
 
-Tugasmu: parse transaksi dan kembalikan JSON.
+Tugasmu: parse transaksi dan kembalikan JSON bersih berstandar tinggi.
 
 Kategori PEMASUKAN (type="in"):
 ${JSON.stringify(CATS_IN)}
@@ -19,7 +19,7 @@ ${JSON.stringify(CATS_OUT)}
 Kembalikan HANYA JSON ini (tanpa markdown, tanpa teks lain, tanpa backtick):
 {
   "type": "in" | "out",
-  "deskripsi": "teks deskripsi (patuhi aturan khusus di bawah, jangan batasi jumlah kata)",
+  "deskripsi": "teks deskripsi hasil standarisasi profesional",
   "nominal": integer_rupiah,
   "tanggal": "YYYY-MM-DD",
   "kategori": "nama kategori dari daftar",
@@ -38,11 +38,11 @@ Aturan Dasar:
 - Makan pokok/harian = Kebutuhan; jajan/nongkrong/delivery = Keinginan (pertimbangkan konteks)
 - Pilih kategori & sub_kategori PERSIS dari daftar di atas
 
-Aturan Khusus Kolom "deskripsi":
-1. STRICT MODE: Jika input diapit tanda kutip (contoh: "ABC Saus 270ml x2"), DILARANG mengubah, menambah, atau meringkas teks tersebut. Gunakan persis apa adanya.
-2. SMART FORMATTING: Jika input pendek ("buah 5k"), rapikan ("Buah"). TAPI, JIKA INPUT MENGANDUNG MEREK, UKURAN, ATAU LEBIH DARI 3 KATA, biarkan persis apa adanya! JANGAN diringkas!
-3. NO VERBS/NOUNS: JANGAN PERNAH menambahkan kata seperti "Beli", "Bayar", "Pembelian", "Pembayaran", atau "Pengeluaran untuk" jika tidak ada di teks asli user.
-4. PEMISAHAN CLUE: Jika ada kata petunjuk yang dipisah koma, gunakan HANYA untuk analisis kategori. Jangan masukkan ke deskripsi.`;
+Aturan Khusus Kolom "deskripsi" (SWEET SPOT TUNING):
+1. STRICT QUOTES: Jika ada teks yang sengaja diapit tanda kutip ganda oleh user (contoh: "ABC Saus 270ml x2"), pertahankan bagian di dalam kutip tersebut PERSIS apa adanya tanpa mengubah huruf atau memotongnya.
+2. TYPOS & CAPITALIZATION ENFORCEMENT: Wajib memperbaiki typo, singkatan kasual, atau bahasa slang menjadi kata baku yang rapi (contoh: "mkn siang" -> "Makan siang", "bensin prtamax" -> "Bensin Pertamax"). Selalu gunakan huruf kapital yang presisi (Sentence Case atau Title Case untuk nama brand/tempat/kegiatan). JANGAN biarkan huruf kecil semua!
+3. ANTI-FLUFF BUT SMART CONTEXT: DILARANG keras menambahkan kata kerja malas pengulangan seperti "Beli", "Bayar", "Pembelian", "Pembayaran", atau "Pengeluaran untuk". SEBAGAI GANTINYA, jika input terlalu singkat, ubah menjadi kata benda penjelas yang elegan (contoh: "indihome 350k" -> "Langganan Internet Indihome", "listrik" -> "Token Listrik", "patungan wifi" -> "Iuran Wifi Bersama", "gaji" -> "Gaji Bulanan"). Jika input bawaan user sudah panjang dan detail, pertahankan detailnya, cukup rapikan typo dan kapitalisasinya saja.
+4. PEMISAHAN CLUE: Jika ada kata petunjuk yang dipisah koma di akhir teks (contoh: "sate ayam 25k, jajan harian"), gunakan kata setelah koma ("jajan harian") HANYA untuk analisis kategori. Hapus total clue di belakang koma tersebut dari kolom deskripsi akhir.`;
   }
 
   async function parse(text) {
