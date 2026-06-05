@@ -75,6 +75,15 @@
       left: 0 !important;
       display: block !important;
     }
+
+    /* Optimasi Ukuran Tombol Toggle Khusus Tampilan Desktop */
+    @media (min-width: 768px) {
+      #btn-toggle-budget-form, #btn-toggle-reminder-form {
+        padding: 8px 18px !important;
+        font-size: 13px !important;
+        letter-spacing: 0.02em;
+      }
+    }
   </style>
 </head>
 <body>
@@ -278,10 +287,15 @@
 
       <section id="page-budgeting" class="page">
         <div class="page-scroll" style="padding: 0 16px 24px 16px;">
-          <h2 class="page-title">Budgeting</h2>
-          <p class="page-sub">Atur batasan pengeluaran agar lebih terkontrol</p>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+            <div>
+              <h2 class="page-title" style="margin-bottom:2px;">Budgeting</h2>
+              <p class="page-sub">Atur batasan pengeluaran agar lebih terkontrol</p>
+            </div>
+            <button id="btn-toggle-budget-form" onclick="toggleBudgetForm()" style="background: var(--accent); color: #fff; border: none; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s;">+ Aturan</button>
+          </div>
           
-          <div id="budget-form-card" class="budget-form-card" style="background: #fff !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block !important;">
+          <div id="budget-form-card" class="budget-form-card hidden" style="background: #fff !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
             <div id="budget-edit-badge" class="hidden" style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:6px 10px; border-radius:6px; text-align:center;">📝 Sedang Mengedit Aturan Budget</div>
             
             <div class="mf-field">
@@ -337,10 +351,15 @@
           <div class="section-row" style="margin-top: 24px;"><span class="section-label" style="font-weight: 700 !important;">Daftar Aturan Budget</span></div>
           <div id="budget-rules-list"></div>
 
-          <h2 class="page-title" style="margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px;">Pengingat Tagihan</h2>
-          <p style="font-size:12px; color:var(--text-2); margin-bottom:14px;">Atur pengingat tagihan berkala atau sekali bayar.</p>
-            
-            <div id="reminder-form-card" class="budget-form-card" style="background: #fff !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block !important;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px; margin-bottom: 14px;">
+            <div>
+              <h2 class="page-title" style="margin-bottom:2px; margin-top:0; border-top:none; padding-top:0;">Pengingat Tagihan</h2>
+              <p style="font-size:12px; color:var(--text-2); margin-bottom:0;">Atur pengingat tagihan berkala atau sekali bayar.</p>
+            </div>
+            <button id="btn-toggle-reminder-form" onclick="toggleReminderForm()" style="background: var(--accent); color: #fff; border: none; padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s;">+ Tagihan</button>
+          </div>
+          
+          <div id="reminder-form-card" class="budget-form-card hidden" style="background: #fff !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
               <div id="reminder-edit-badge" class="hidden" style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:6px 10px; border-radius:6px; text-align:center;">📝 Sedang Mengedit Pengingat Tagihan</div>
 
               <div class="mf-field">

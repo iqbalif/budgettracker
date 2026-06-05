@@ -1864,7 +1864,16 @@ function cancelBudgetEdit() {
   if (cancelBtn) cancelBtn.classList.add('hidden');
 
   const formCard = document.getElementById('budget-form-card');
-  if (formCard) formCard.classList.remove('is-editing');
+  if (formCard) {
+    formCard.classList.add('hidden');
+    formCard.classList.remove('is-editing');
+  }
+
+  const toggleBtn = document.getElementById('btn-toggle-budget-form');
+  if (toggleBtn) {
+    toggleBtn.textContent = '+ Aturan';
+    toggleBtn.style.background = 'var(--accent)';
+  }
 
   const btn = document.getElementById('btn-save-budget');
   if (btn) btn.textContent = 'Tambah Aturan';
@@ -1880,25 +1889,73 @@ function renderBudgetRules() {
     return;
   }
 
+  // Ambil data transaksi bulan berjalan untuk kalkulasi real-time progress
+  const monthEl = document.getElementById('dash-month-filter');
+  const mon = monthEl ? monthEl.value : '';
+  const currentMon = mon === 'all' || !mon ? todayISO().slice(0, 7) : mon;
+  const monthTrx = allTrx.filter(t => monthKey(t.tanggal) === currentMon);
+
+  const totalIn = monthTrx.filter(t => t.type === 'in').reduce((s, t) => s + t.nominal, 0);
+  const totalOut = monthTrx.filter(t => t.type === 'out').reduce((s, t) => s + t.nominal, 0);
+
   list.innerHTML = budgetRules.map(r => {
     let title = r.scope === 'all' ? 'Seluruh Pengeluaran' : r.target;
-    let limitTxt = '';
-    if (r.type === 'nominal') {
-      limitTxt = `Maksimal: <b>${fmtRp(r.limit)}</b>`;
-    } else {
-      let baseStr = r.base === 'in' ? 'Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${r.baseTarget}`;
-      limitTxt = `Maksimal: <b>${r.limit}%</b> dari ${baseStr}`;
-    }
     
+    // 1. HITUNG REALISASI PENGELUARAN (USAGE)
+    let usage = 0;
+    if (r.scope === 'all') usage = totalOut;
+    else if (r.scope === 'kategori') usage = monthTrx.filter(t => t.type === 'out' && t.kategori === r.target).reduce((s, t) => s + t.nominal, 0);
+    else if (r.scope === 'sub') usage = monthTrx.filter(t => t.type === 'out' && t.sub_kategori === r.target).reduce((s, t) => s + t.nominal, 0);
+    else if (r.scope === 'urgensi') usage = monthTrx.filter(t => t.type === 'out' && t.urgensi === r.target).reduce((s, t) => s + t.nominal, 0);
+    else if (r.scope === 'utilitas') usage = monthTrx.filter(t => t.type === 'out' && t.utilitas === r.target).reduce((s, t) => s + t.nominal, 0);
+
+    // 2. HITUNG AMBANG BATAS LIMIT ATURAN (LIMIT VALUE)
+    let limitVal = 0;
+    if (r.type === 'nominal') limitVal = r.limit;
+    else if (r.type === 'percent') {
+      let baseVal = 0;
+      if (r.base === 'in') baseVal = totalIn;
+      else if (r.base === 'out') baseVal = totalOut;
+      else if (r.base === 'kategori') baseVal = monthTrx.filter(t => t.kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
+      else if (r.base === 'sub') baseVal = monthTrx.filter(t => t.sub_kategori === r.baseTarget).reduce((s, t) => s + t.nominal, 0);
+      limitVal = (r.limit / 100) * baseVal;
+    }
+
+    // 3. KALKULASI PERSENTASE & WARNA WARNI EVALUASI
+    const pct = limitVal > 0 ? (usage / limitVal) * 100 : 0;
+    const barColor = pct >= 100 ? 'var(--out)' : pct >= 80 ? '#F3C97B' : 'var(--accent)';
+    const statusText = pct >= 100 
+      ? `🚨 Over Budget! (${pct.toFixed(1)}%)` 
+      : pct >= 80 
+        ? `⚠️ Mendekati Batas (${pct.toFixed(1)}%)` 
+        : `${pct.toFixed(1)}% Terpakai`;
+
     return `
-      <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:10px;">
-        <div>
-          <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px;">${title}</div>
-          <div style="font-size:12px; color:var(--text-light);">${limitTxt}</div>
+      <div class="budget-rule-card" style="background:#fff; padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px; display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
+          <div>
+            <div style="font-weight:700; font-size:15px; color:var(--text); margin-bottom:2px;">${title}</div>
+            <div style="font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:0.02em;">
+              ${r.type === 'percent' ? `Persentase: ${r.limit}% dari ${r.base === 'in' ? 'Pemasukan' : r.base === 'out' ? 'Pengeluaran' : r.baseTarget}` : 'Nominal Tetap'}
+            </div>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button onclick="editBudgetRule('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">Edit</button>
+            <button onclick="deleteBudgetRule('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">Hapus</button>
+          </div>
         </div>
-        <div style="display:flex; gap:6px;">
-          <button onclick="editBudgetRule('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Edit</button>
-          <button onclick="deleteBudgetRule('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Hapus</button>
+
+        <div style="width:100%;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-2); margin-bottom:6px;">
+            <span>Terpakai: <b>${fmtRp(usage)}</b></span>
+            <span>Batas: <b>${fmtRp(limitVal)}</b></span>
+          </div>
+          <div style="width:100%; height:7px; background:rgba(0,0,0,0.05); border-radius:4px; overflow:hidden;">
+            <div style="height:100%; width:${Math.min(pct, 100)}%; background:${barColor}; border-radius:4px; transition: width 0.3s ease;"></div>
+          </div>
+          <div style="text-align:right; font-size:11px; font-weight:700; color:${barColor}; margin-top:4px;">
+            ${statusText}
+          </div>
         </div>
       </div>
     `;
@@ -1943,7 +2000,16 @@ function editBudgetRule(id) {
   if (cancelBtn) cancelBtn.classList.remove('hidden');
 
   const formCard = document.getElementById('budget-form-card');
-  if (formCard) formCard.classList.add('is-editing');
+  if (formCard) {
+    formCard.classList.remove('hidden');
+    formCard.classList.add('is-editing');
+  }
+
+  const toggleBtn = document.getElementById('btn-toggle-budget-form');
+  if (toggleBtn) {
+    toggleBtn.textContent = '✕ Tutup';
+    toggleBtn.style.background = 'var(--out)';
+  }
   
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -2498,7 +2564,16 @@ function cancelReminderEdit() {
   if (cancelBtn) cancelBtn.classList.add('hidden');
 
   const formCard = document.getElementById('reminder-form-card');
-  if (formCard) formCard.classList.remove('is-editing');
+  if (formCard) {
+    formCard.classList.add('hidden');
+    formCard.classList.remove('is-editing');
+  }
+
+  const toggleBtn = document.getElementById('btn-toggle-reminder-form');
+  if (toggleBtn) {
+    toggleBtn.textContent = '+ Tagihan';
+    toggleBtn.style.background = 'var(--accent)';
+  }
 
   const btn = document.getElementById('btn-save-reminder');
   if (btn) btn.textContent = 'Tambah Pengingat';
@@ -2695,7 +2770,16 @@ function editBillReminder(id) {
   if (cancelBtn) cancelBtn.classList.remove('hidden');
 
   const formCard = document.getElementById('reminder-form-card');
-  if (formCard) formCard.classList.add('is-editing');
+  if (formCard) {
+    formCard.classList.remove('hidden');
+    formCard.classList.add('is-editing');
+  }
+
+  const toggleBtn = document.getElementById('btn-toggle-reminder-form');
+  if (toggleBtn) {
+    toggleBtn.textContent = '✕ Tutup';
+    toggleBtn.style.background = 'var(--out)';
+  }
 
   toggleReminderFreq();
 
@@ -2744,4 +2828,21 @@ function toggleSettleReminder(reminderId, dateStr) {
   localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
   syncBillRemindersToCloud();
   loadDashboard();
+}
+
+function toggleBudgetForm() {
+  const card = document.getElementById('budget-form-card');
+  const btn = document.getElementById('btn-toggle-budget-form');
+  if (!card || !btn) return;
+  const isHidden = card.classList.toggle('hidden');
+  btn.textContent = isHidden ? '+ Aturan' : '✕ Tutup';
+  btn.style.background = isHidden ? 'var(--accent)' : 'var(--out)';
+}
+function toggleReminderForm() {
+  const card = document.getElementById('reminder-form-card');
+  const btn = document.getElementById('btn-toggle-reminder-form');
+  if (!card || !btn) return;
+  const isHidden = card.classList.toggle('hidden');
+  btn.textContent = isHidden ? '+ Tagihan' : '✕ Tutup';
+  btn.style.background = isHidden ? 'var(--accent)' : 'var(--out)';
 }
