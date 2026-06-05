@@ -1714,6 +1714,14 @@ function toggleBudgetScope() {
       const subs = CATS_OUT[c] || [];
       subs.forEach(s => targetSel.innerHTML += `<option value="${escapeHtml(s)}">${escapeHtml(s)} (${escapeHtml(c)})</option>`);
     });
+  } else if (scope === 'urgensi') {
+    targetRow.classList.remove('hidden');
+    targetLabel.textContent = 'Pilih Urgensi';
+    ['Kebutuhan', 'Keinginan'].forEach(u => targetSel.innerHTML += `<option value="${u}">${u}</option>`);
+  } else if (scope === 'utilitas') {
+    targetRow.classList.remove('hidden');
+    targetLabel.textContent = 'Pilih Utilitas';
+    ['Consumptive', 'Productive'].forEach(ut => targetSel.innerHTML += `<option value="${ut}">${ut}</option>`);
   }
 }
 
@@ -1980,6 +1988,8 @@ function checkBudgetAlerts() {
       if (r.scope === 'all') usage = totalOut;
       else if (r.scope === 'kategori') usage = monthTrx.filter(t => t.type === 'out' && t.kategori === r.target).reduce((s, t) => s + t.nominal, 0);
       else if (r.scope === 'sub') usage = monthTrx.filter(t => t.type === 'out' && t.sub_kategori === r.target).reduce((s, t) => s + t.nominal, 0);
+      else if (r.scope === 'urgensi') usage = monthTrx.filter(t => t.type === 'out' && t.urgensi === r.target).reduce((s, t) => s + t.nominal, 0);
+      else if (r.scope === 'utilitas') usage = monthTrx.filter(t => t.type === 'out' && t.utilitas === r.target).reduce((s, t) => s + t.nominal, 0);
 
       // Hitung Limit Pembanding
       let limitVal = 0;
