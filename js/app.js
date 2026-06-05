@@ -2016,10 +2016,17 @@ function editBudgetRule(id) {
 
 // 6. Hapus Aturan
 function deleteBudgetRule(id) {
+  const r = budgetRules.find(x => x.id === id);
+  const targetName = r ? (r.scope === 'all' ? 'Seluruh Pengeluaran' : r.target) : 'aturan ini';
+  
+  if (!confirm(`Apakah Anda yakin ingin menghapus aturan budget untuk "${targetName}"?`)) {
+    return; // Batalkan jika user klik Cancel
+  }
+
   budgetRules = budgetRules.filter(r => r.id !== id);
   localStorage.setItem('budget_rules', JSON.stringify(budgetRules));
   renderBudgetRules();
-  loadDashboard(); // Update peringatan di dashboard
+  loadDashboard(); 
   syncBudgetRulesToCloud();
 }
 
@@ -2580,6 +2587,13 @@ function cancelReminderEdit() {
 }
 
 function deleteBillReminder(id) {
+  const r = billReminders.find(x => x.id === id);
+  const reminderName = r ? r.name : 'pengingat ini';
+
+  if (!confirm(`Apakah Anda yakin ingin menghapus pengingat tagihan "${reminderName}"?`)) {
+    return; // Batalkan jika user klik Cancel
+  }
+
   billReminders = billReminders.filter(r => r.id !== id);
   localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
   syncBillRemindersToCloud();
