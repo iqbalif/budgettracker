@@ -970,7 +970,7 @@ function loadHistory() {
 
   const sortedDates = Object.keys(groups).sort().reverse();
   listEl.innerHTML = sortedDates.map(date => `
-    <div class="trx-date-group">${fmtDate(date)}</div>
+    <div class="trx-date-group">${getIndonesianDayName(date) ? getIndonesianDayName(date) + ', ' : ''}${fmtDate(date)}</div>
     ${groups[date].map(trxCard).join('')}
   `).join('');
 }
