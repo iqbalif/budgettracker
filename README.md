@@ -174,13 +174,14 @@ Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, me
 
 ### Kode Apps Script
 
-Buka Google Sheets → **Extensions → Apps Script**, lalu paste seluruh isi file [`apps-script/Code.gs`](apps-script/Code.gs) dan isi `spreadsheetId` di baris paling atas.
+Buka Google Sheets → **Extensions → Apps Script**, lalu paste seluruh isi file [`apps-script/Code.gs`](apps-script/Code.gs). Tidak ada yang perlu diisi: script yang dibuat dari dalam spreadsheet otomatis memakai spreadsheet itu. (`SPREADSHEET_ID` di baris atas hanya diisi jika script-mu dibuat terpisah dari script.google.com.)
 
 Yang dilakukan script ini:
 
 - `append` — menulis transaksi baru di baris kosong pertama
 - `update` / `delete` — mencari baris berdasarkan **ID Transaksi** (kolom A), bukan nomor baris, sehingga perangkat dengan data yang belum tersinkron tidak bisa mengenai transaksi yang salah. Nomor baris hanya dipakai untuk baris lama yang tidak punya ID
-- `overwrite_all` — dipakai modul Budgeting & Pengingat
+- `upsert` / `remove` — dipakai modul Budgeting & Pengingat untuk menyimpan atau menghapus **satu baris** berdasarkan ID. Baris lain tidak disentuh, sehingga perangkat yang datanya belum termuat tidak bisa menimpa aturan atau pengingat dari perangkat lain
+- `overwrite_all` — hanya dipertahankan untuk aplikasi versi lama
 - Setiap perintah membalas `{ ok: true }` atau `{ ok: false, error }`; aplikasi membaca balasan ini dan menampilkan pesan gagal jika penyimpanan tidak berhasil
 
 ### Cara Deploy

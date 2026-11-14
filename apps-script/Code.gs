@@ -1,10 +1,21 @@
 // ============================================
 // BUDGET TRACKER - PWA BACKEND (WEB APP ONLY)
 // ============================================
-// Salin seluruh isi file ini ke editor Apps Script (Extensions → Apps Script),
-// isi spreadsheetId, lalu deploy ulang (lihat README → "Cara Deploy").
+// Salin seluruh isi file ini ke editor Apps Script (Extensions → Apps Script dari
+// dalam spreadsheet-mu), lalu deploy ulang (lihat README → "Cara Deploy").
+//
+// Tidak ada yang perlu diisi: script yang dibuat dari dalam spreadsheet otomatis
+// memakai spreadsheet itu. Isi SPREADSHEET_ID hanya jika script-mu berdiri sendiri
+// (dibuat dari script.google.com, bukan dari menu Extensions).
 
-var spreadsheetId = "MASUKKAN_SPREADSHEET_ID_KAMU";
+var SPREADSHEET_ID = "";
+
+function getSpreadsheet() {
+  if (SPREADSHEET_ID) return SpreadsheetApp.openById(SPREADSHEET_ID);
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error("Script tidak terikat ke spreadsheet. Isi SPREADSHEET_ID di Code.gs.");
+  return ss;
+}
 
 function jsonOut(obj) {
   return ContentService.createTextOutput(JSON.stringify(obj))
@@ -40,7 +51,7 @@ function doPost(e) {
 
 function handleWebAppRequest(data) {
   try {
-    var ss = SpreadsheetApp.openById(spreadsheetId);
+    var ss = getSpreadsheet();
     var sheet = ss.getSheetByName(data.sheet);
     if (!sheet) throw new Error("Sheet tidak ditemukan: " + data.sheet);
 
@@ -61,8 +72,26 @@ function handleWebAppRequest(data) {
       sheet.getRange(rowD, 1, 1, sheet.getLastColumn()).clearContent();
       return jsonOut({ ok: true, row: rowD });
 
+    } else if (data.action === "upsert") {
+      // Budgeting & Pengingat: simpan SATU baris berdasarkan ID (kolom A).
+      // Ada → ditimpa, belum ada → ditambahkan. Baris lain tidak disentuh.
+      var upId = String(data.id || "").trim();
+      if (!upId) throw new Error("ID kosong");
+      var found = findRowsById(sheet, upId);
+      var rowUp = found.length ? found[0] : Math.max(sheet.getLastRow(), 1) + 1;
+      sheet.getRange(rowUp, 1, 1, data.values.length).setValues([data.values]);
+      return jsonOut({ ok: true, row: rowUp });
+
+    } else if (data.action === "remove") {
+      // Budgeting & Pengingat: hapus baris dengan ID tersebut (jika ada)
+      var rmId = String(data.id || "").trim();
+      if (!rmId) throw new Error("ID kosong");
+      var rowsRm = findRowsById(sheet, rmId);
+      for (var k = rowsRm.length - 1; k >= 0; k--) sheet.deleteRow(rowsRm[k]);
+      return jsonOut({ ok: true, removed: rowsRm.length });
+
     } else if (data.action === "overwrite_all") {
-      // Digunakan oleh modul Budgeting & Pengingat untuk menyimpan seluruh data sekaligus
+      // Tidak lagi dipakai aplikasi versi terbaru; dipertahankan untuk aplikasi versi lama
       var lastRow = sheet.getLastRow();
       if (lastRow > 1) {
         sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
@@ -94,14 +123,7 @@ function resolveRow(sheet, data) {
     return hintRow;
   }
 
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) throw new Error("Transaksi tidak ditemukan (ID " + id + ")");
-
-  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-  var matches = [];
-  for (var i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]).trim() === id) matches.push(i + 2);
-  }
+  var matches = findRowsById(sheet, id);
 
   if (matches.length === 0) {
     throw new Error("Transaksi tidak ditemukan, mungkin sudah dihapus dari perangkat lain. Muat ulang data.");
@@ -112,6 +134,18 @@ function resolveRow(sheet, data) {
     throw new Error("ID transaksi ganda di sheet (" + id + "). Muat ulang data lalu coba lagi.");
   }
   return matches[0];
+}
+
+// Semua nomor baris (mulai baris 2) yang kolom A-nya sama dengan id
+function findRowsById(sheet, id) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  var rows = [];
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0]).trim() === id) rows.push(i + 2);
+  }
+  return rows;
 }
 
 function findFirstEmptyRowByColumn(sheet, colIndex) {
@@ -125,7 +159,8 @@ function findFirstEmptyRowByColumn(sheet, colIndex) {
 
 function doGet(e) {
   var action = e.parameter.action;
-  var ss = SpreadsheetApp.openById(spreadsheetId);
+  var ss;
+  try { ss = getSpreadsheet(); } catch (err) { return jsonOut({ ok: false, error: err.message }); }
 
   // Ambil aturan budgeting
   if (action === "get_rules") {

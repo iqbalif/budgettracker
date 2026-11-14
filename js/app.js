@@ -1568,24 +1568,38 @@ function showToast(msg) {
 let budgetRules = JSON.parse(localStorage.getItem('budget_rules')) || [];
 let editBudgetId = null;
 
-async function syncBudgetRulesToCloud() {
-  const url = getCfg(CFG.SCRIPT_URL);
-  if (!url) return;
-  const array2D = budgetRules.map(r => [
-    r.id || '',
-    r.scope || '',
-    r.target || '',
-    r.type || '',
-    r.base || '',
-    r.baseTarget || '',
-    r.limit || 0
-  ]);
+// ---- SINKRON PER ITEM ----
+// Aturan budget & pengingat disimpan SATU BARIS per perubahan (upsert / remove berdasarkan ID),
+// bukan menimpa seluruh sheet. Dengan begitu perangkat yang datanya belum termuat
+// tidak bisa menghapus data perangkat lain.
+function budgetRuleRow(r) {
+  return [r.id || '', r.scope || '', r.target || '', r.type || '', r.base || '', r.baseTarget || '', r.limit || 0];
+}
+
+function billReminderRow(r) {
+  return [
+    r.id || '', r.name || '', r.nominal || 0, r.freq || '', r.interval || 1, r.timing || '', r.date || '',
+    r.kategori || '', r.sub_kategori || '', r.urgensi || '', r.utilitas || '', r.settled_history || ''
+  ];
+}
+
+// item ada di daftar lokal → simpan barisnya; sudah tidak ada → hapus barisnya di sheet
+async function syncItemToCloud(sheet, id, item, toRow, label) {
+  if (!getCfg(CFG.SCRIPT_URL) || !id) return;
   try {
-    await Sheets.post({ action: "overwrite_all", sheet: "BudgetRules", values: array2D });
-  } catch(e) {
-    console.error('Failed to sync budget rules', e);
-    showToast('Aturan budget belum tersimpan ke Sheets: ' + e.message);
+    if (item) await Sheets.post({ action: 'upsert', sheet, id, values: toRow(item) });
+    else      await Sheets.post({ action: 'remove', sheet, id });
+  } catch (e) {
+    console.error('Gagal sinkron ' + sheet, e);
+    const outdated = /Action tidak valid/i.test(e.message);
+    showToast(outdated
+      ? 'Apps Script belum versi terbaru. Deploy ulang Code.gs agar ' + label + ' tersimpan.'
+      : label + ' belum tersimpan ke Sheets: ' + e.message);
   }
+}
+
+function syncBudgetRuleToCloud(id) {
+  return syncItemToCloud('BudgetRules', id, budgetRules.find((r) => r.id === id), budgetRuleRow, 'Aturan budget');
 }
 
 async function fetchBudgetRulesFromCloud() {
@@ -1625,33 +1639,8 @@ async function fetchBudgetRulesFromCloud() {
   }
 }
 
-async function syncBillRemindersToCloud() {
-  if (!isRemindersFetched && billReminders.length === 1) {
-    console.warn("Sinkronisasi keluar dibatalkan demi keamanan data: Data awan belum berhasil dimuat pada sesi ini.");
-    return;
-  }
-  const url = getCfg(CFG.SCRIPT_URL);
-  if (!url) return;
-  const array2D = billReminders.map(r => [
-    r.id || '',
-    r.name || '',
-    r.nominal || 0,
-    r.freq || '',
-    r.interval || 1,
-    r.timing || '',
-    r.date || '',
-    r.kategori || '',
-    r.sub_kategori || '',
-    r.urgensi || '',
-    r.utilitas || '',
-    r.settled_history || ''
-  ]);
-  try {
-    await Sheets.post({ action: "overwrite_all", sheet: "Reminders", values: array2D });
-  } catch(e) {
-    console.error('Failed to sync bill reminders', e);
-    showToast('Pengingat belum tersimpan ke Sheets: ' + e.message);
-  }
+function syncBillReminderToCloud(id) {
+  return syncItemToCloud('Reminders', id, billReminders.find((r) => r.id === id), billReminderRow, 'Pengingat');
 }
 
 async function fetchBillRemindersFromCloud() {
@@ -1846,6 +1835,7 @@ function addBudgetRule() {
     return;
   }
 
+  const editedBudgetId = editBudgetId;
   if (editBudgetId) {
     const idx = budgetRules.findIndex(x => x.id === editBudgetId);
     if (idx !== -1) {
@@ -1874,7 +1864,7 @@ function addBudgetRule() {
   cancelBudgetEdit();
   renderBudgetRules();
   loadDashboard(); // Update peringatan di dashboard
-  syncBudgetRulesToCloud();
+  syncBudgetRuleToCloud(editedBudgetId || budgetRules[budgetRules.length - 1].id);
 }
 
 function cancelBudgetEdit() {
@@ -2059,7 +2049,7 @@ function deleteBudgetRule(id) {
   localStorage.setItem('budget_rules', JSON.stringify(budgetRules));
   renderBudgetRules();
   loadDashboard(); 
-  syncBudgetRulesToCloud();
+  syncBudgetRuleToCloud(id);
 }
 
 // ============================================
@@ -2501,6 +2491,7 @@ function addBillReminder() {
     return;
   }
 
+  const editedReminderId = editReminderId;
   if (editReminderId) {
     const rem = billReminders.find(x => x.id === editReminderId);
     if (rem) {
@@ -2538,7 +2529,7 @@ function addBillReminder() {
     showToast('Pengingat tagihan berhasil ditambahkan ✓');
   }
 
-  syncBillRemindersToCloud();
+  syncBillReminderToCloud(editedReminderId || billReminders[billReminders.length - 1].id);
   renderBillReminders();
 }
 
@@ -2607,7 +2598,7 @@ function deleteBillReminder(id) {
 
   billReminders = billReminders.filter(r => r.id !== id);
   localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
-  syncBillRemindersToCloud();
+  syncBillReminderToCloud(id);
   if (editReminderId === id) {
     cancelReminderEdit();
   }
@@ -2851,7 +2842,7 @@ function toggleSettleReminder(reminderId, dateStr) {
   }
   rem.settled_history = historyArr.join(',');
   localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
-  syncBillRemindersToCloud();
+  syncBillReminderToCloud(reminderId);
   loadDashboard();
 }
 
