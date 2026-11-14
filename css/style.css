@@ -580,6 +580,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
   .hero-label {
     font-size: 11px !important;
     letter-spacing: 0.07em !important;
+  }
 }
 
 /* ---- BUDGETING ---- */
@@ -667,3 +668,92 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 }
 .budget-alert-card.warning .budget-alert-bar-fill { background: #F3C97B; }
 .budget-alert-card.danger .budget-alert-bar-fill { background: #F4956A; }
+/* =====================================================================
+ * KOMPONEN SERAGAM (tombol kecil, ikon, panel peringatan, rekap, grafik)
+ * Semua warna di sini memakai variabel agar mudah diubah / dibuat dark mode.
+ * ===================================================================== */
+:root{
+  --warn:        #8A5F00;
+  --warn-bar:    #D9A441;
+  --warn-bg:     #FBF3DD;
+  --danger-bg:   var(--out-bg);
+  --danger-line: rgba(139,69,19,.28);
+  --accent-soft: rgba(122,98,69,.10);
+  --in-line:     rgba(61,107,64,.30);
+}
+
+/* Angka sejajar di semua nominal */
+.hero-inout-val,.ir-val,.trx-amt,.hs-val,.top3-right,.matrix-cell,.uc-total,.al-pct,.al-sub,.dc-info b{font-variant-numeric:tabular-nums;}
+
+.ico{flex-shrink:0;vertical-align:-3px;}
+
+/* ---- Tombol kecil ---- */
+.btn-sm{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:6px 12px;border-radius:var(--r-sm);border:1px solid transparent;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;line-height:1.3;white-space:nowrap;cursor:pointer;transition:opacity .15s,background .15s;}
+.btn-sm:active{opacity:.7;}
+.btn-sm.pri{background:var(--accent);color:#fff;}
+.btn-sm.ghost{background:var(--bg-soft);color:var(--text-2);border-color:var(--border);}
+.btn-sm.ok{background:var(--in-bg);color:var(--in);border-color:var(--in-line);}
+.btn-sm.danger{background:transparent;color:var(--out);border-color:var(--danger-line);}
+
+.btn-pill{background:var(--accent);color:#fff;border:none;padding:7px 14px;border-radius:99px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;transition:background .2s,color .2s;}
+.btn-pill.is-open{background:var(--bg-muted);color:var(--text-2);}
+
+/* Badge urgensi mengikuti palet hangat */
+.b-need{background:var(--bg-soft);color:var(--text-2);}
+
+.rule-status{display:flex;justify-content:flex-end;align-items:center;gap:4px;font-size:12px;font-weight:600;margin-top:5px;}
+.note-warn{display:flex;align-items:center;gap:7px;background:var(--warn-bg);color:var(--warn);border-radius:var(--r-sm);padding:7px 10px;font-size:12px;font-weight:500;margin-bottom:6px;}
+
+/* ---- Panel peringatan & pengingat (Dashboard) ---- */
+.alert-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;}
+.al-row{display:flex;align-items:center;gap:11px;padding:11px 14px;}
+.al-row + .al-row{border-top:1px solid var(--border);}
+.al-ico{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--accent-soft);color:var(--accent);}
+.al-row.warn .al-ico{background:var(--warn-bg);color:var(--warn);}
+.al-row.danger .al-ico{background:var(--danger-bg);color:var(--out);}
+.al-body{flex:1;min-width:0;}
+.al-title{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px;font-weight:600;color:var(--text);}
+.al-title > span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.al-pct{font-size:13px;font-weight:600;flex-shrink:0;}
+.al-row.warn .al-pct{color:var(--warn);}
+.al-row.danger .al-pct{color:var(--out);}
+.al-sub{font-size:12px;color:var(--text-2);margin-top:1px;}
+.al-row.late .al-sub b{color:var(--out);}
+.al-bar{height:4px;background:var(--bg-muted);border-radius:2px;overflow:hidden;margin-top:7px;}
+.al-bar i{display:block;height:100%;border-radius:2px;background:var(--warn-bar);}
+.al-row.danger .al-bar i{background:var(--out);}
+.al-actions{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.al-done{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--in);}
+.al-row.settled .al-ico,.al-row.settled .al-body{opacity:.5;}
+
+/* ---- Rekap kategori: satu kartu, bar komposisi + baris rapat ---- */
+.in-rekap{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);gap:0;overflow:hidden;}
+.rk-stack{display:flex;gap:2px;height:10px;margin:14px 14px 6px;border-radius:5px;overflow:hidden;background:var(--bg-muted);}
+.rk-stack:empty{display:none;}
+.rk-stack i{display:block;height:100%;min-width:2px;transition:width .5s ease;}
+.in-rekap .ir-item{background:none;border:none;border-radius:0;padding:10px 14px;cursor:pointer;}
+.in-rekap .ir-item + .ir-item{border-top:1px solid var(--border);}
+.in-rekap .ir-item:active{background:var(--bg-soft);}
+.in-rekap .ir-head{margin-bottom:0;gap:10px;}
+.ir-kat{display:flex;align-items:center;gap:8px;min-width:0;}
+.ir-dot{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+.ir-val{white-space:nowrap;}
+.ir-pct{display:inline-block;min-width:38px;text-align:right;font-size:12px;}
+.in-rekap .ir-subs{margin:6px 0 0 17px;}
+.ir-sub{font-size:12px;}
+
+/* ---- Grafik pengeluaran harian ---- */
+.dc-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);padding:12px 14px 10px;}
+.dc-info{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:12px;color:var(--text-2);margin-bottom:10px;min-height:20px;}
+.dc-info b{font-size:14px;font-weight:600;color:var(--text);white-space:nowrap;}
+.dc-bars{display:flex;align-items:flex-end;gap:2px;height:76px;border-bottom:1px solid var(--border2);}
+.dc-bar{flex:1;height:100%;display:flex;align-items:flex-end;background:none;border:none;padding:0;cursor:pointer;min-width:0;}
+.dc-bar i{display:block;width:100%;border-radius:2px 2px 0 0;background:#CDB399;transition:height .4s ease,background .15s;}
+.dc-bar.zero i{height:0;}
+.dc-bar.future{pointer-events:none;}
+.dc-bar.today i{background:var(--accent);}
+.dc-bar.sel i{background:var(--out);}
+.dc-bar.sel.zero{box-shadow:inset 0 -3px 0 var(--out);}
+.dc-axis{display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-top:4px;}
+@media (hover:hover){.dc-bar:hover i{background:var(--out);}}
+.nowrap{white-space:nowrap;}

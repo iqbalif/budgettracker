@@ -260,6 +260,7 @@ function loadDashboard() {
   renderOutRekap(outs);
   renderTop3Transactions(outs);
   renderDashboardAnomaly(mon);
+  renderDailyChart(mon, outs);
 
   // 2. Breakdown Pengeluaran
   const conNeed = outs.filter(t=>t.utilitas==='Consumptive'&&t.urgensi==='Kebutuhan').reduce((s,t)=>s+t.nominal,0);
@@ -269,7 +270,6 @@ function loadDashboard() {
 
   renderMatrix(conNeed, conWant, proNeed, proWant);
   renderUtilChart(conNeed, conWant, proNeed, proWant);
-  checkBudgetAlerts();
 }
 
 function updateHeroMoM(mon, totalIn, totalOut) {
@@ -397,7 +397,7 @@ function renderDashboardAnomaly(mon) {
     const curr = currentCatMap[kat];
     const prev = prevCatMap[kat];
     const pct = Math.round(((curr - prev) / prev) * 100);
-    return `<div style="background:rgba(196,118,58,0.15);color:var(--out);border:1px solid rgba(196,118,58,0.3);border-radius:8px;padding:6px 10px;font-size:12px;display:block;margin-bottom:6px;">⚠ ${escapeHtml(kat)} naik ${pct}% vs bulan lalu</div>`;
+    return `<div class="note-warn">${icon('warn', 14)}<span>${escapeHtml(kat)} naik ${pct}% vs bulan lalu</span></div>`;
   });
 
   el.innerHTML = warnings.join('');
@@ -533,141 +533,147 @@ function renderUtilChart(conNeed, conWant, proNeed, proWant) {
   chEl.innerHTML = legend + bar('Consumptive', conNeed, conWant) + bar('Productive', proNeed, proWant);
 }
 
-// ---- REKAP PEMASUKAN ----
+// ---- IKON GARIS (satu gaya dengan ikon navigasi) ----
+const ICONS = {
+  calendar: '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  warn:     '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  danger:   '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>',
+  check:    '<polyline points="20 6 9 17 4 12"/>'
+};
+function icon(name, size = 16) {
+  return `<svg class="ico" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+}
+
+// ---- REKAP PEMASUKAN & PENGELUARAN ----
+// Satu kartu per rekap: bar komposisi di atas, lalu baris per kategori dengan titik warna yang sama.
+const REKAP_COLORS = {
+  out: ['#8B4513', '#C4763A', '#D9A441', '#7A8B5A', '#4F7A6B', '#5E7A99', '#8A6B93', '#B08A7A'],
+  in:  ['#3D6B40', '#6F9A5B', '#A3BF7A', '#4F7A6B', '#8FB3A3', '#B9A45C', '#7A8B5A', '#9DB89A']
+};
+const REKAP_LIMIT = 8;
+
+function fmtPct(part, total) {
+  if (!total) return '0%';
+  return (part / total * 100).toFixed(1).replace('.', ',') + '%';
+}
+
+// Mengembalikan jumlah baris total (sebelum dipotong `limit`)
+function renderRekap(el, trx, kind, view, showSubs, limit) {
+  const total = trx.reduce((s, t) => s + t.nominal, 0);
+  const map = {};
+  trx.forEach((t) => {
+    const key = view === 'sub' ? (t.sub_kategori || t.kategori) : t.kategori;
+    if (!map[key]) map[key] = { total: 0, subs: {} };
+    map[key].total += t.nominal;
+    if (view !== 'sub' && t.sub_kategori) {
+      map[key].subs[t.sub_kategori] = (map[key].subs[t.sub_kategori] || 0) + t.nominal;
+    }
+  });
+
+  const sorted = Object.entries(map).sort((a, b) => b[1].total - a[1].total);
+  const colors = REKAP_COLORS[kind] || REKAP_COLORS.out;
+  const colorOf = (i) => colors[i] || 'var(--text-3)';
+
+  const segs = total > 0 ? sorted.map(([label, d], i) =>
+    `<i style="width:${Math.max(d.total / total * 100, 0).toFixed(2)}%;background:${colorOf(i)}" title="${escapeHtml(label)}: ${fmtRp(d.total)}"></i>`
+  ).join('') : '';
+
+  const shown = limit ? sorted.slice(0, limit) : sorted;
+  const rows = shown.map(([label, d], i) => {
+    const subRows = showSubs
+      ? Object.entries(d.subs).sort((a, b) => b[1] - a[1])
+          .map(([sub, val]) => `<div class="ir-sub"><span>${escapeHtml(sub)}</span><span>${fmtRp(val)}</span></div>`).join('')
+      : '';
+    return `<div class="ir-item" onclick='jumpToHistory(${jsArg(label)})'>
+      <div class="ir-head">
+        <span class="ir-kat"><span class="ir-dot" style="background:${colorOf(i)}"></span>${escapeHtml(label)}</span>
+        <span class="ir-val ${kind}">${fmtRp(d.total)} <span class="ir-pct">${fmtPct(d.total, total)}</span></span>
+      </div>
+      ${subRows ? `<div class="ir-subs">${subRows}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `<div class="rk-stack">${segs}</div>${rows}`;
+  return sorted.length;
+}
+
 function renderInRekap(ins) {
   const el = document.getElementById('dash-in-rekap');
   if (!el) return;
-
-  const totalIn = ins.reduce((s,t)=>s+t.nominal,0);
   if (!ins.length) {
-    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:10px 0;">Belum ada pemasukan bulan ini</p>';
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:14px;">Belum ada pemasukan bulan ini</p>';
     return;
   }
-
-  if (inCatView === 'sub') {
-    const subMap = {};
-    ins.forEach((t) => {
-      const key = t.sub_kategori || t.kategori;
-      subMap[key] = (subMap[key] || 0) + t.nominal;
-    });
-    const sortedSub = Object.entries(subMap).sort((a,b)=>b[1]-a[1]);
-    el.innerHTML = sortedSub.map(([label, val]) => {
-      const pct = (val/totalIn*100).toFixed(2).replace('.', ',');
-      return `<div class="ir-item" onclick='jumpToHistory(${jsArg(label)})' style="cursor:pointer;">
-        <div class="ir-head">
-          <span class="ir-kat">${escapeHtml(label)}</span>
-          <span class="ir-val in">${fmtRp(val)} <span class="ir-pct">${pct}%</span></span>
-        </div>
-        <div class="cb-track"><div class="cb-fill" style="width:${Math.round(val/totalIn*100)}%;background:var(--in)"></div></div>
-      </div>`;
-    }).join('');
-    return;
-  }
-
-  const catMap = {};
-  ins.forEach(t => {
-    if (!catMap[t.kategori]) catMap[t.kategori] = { total: 0, subs: {} };
-    catMap[t.kategori].total += t.nominal;
-    if (t.sub_kategori) catMap[t.kategori].subs[t.sub_kategori] = (catMap[t.kategori].subs[t.sub_kategori]||0) + t.nominal;
-  });
-  const sorted = Object.entries(catMap).sort((a,b)=>b[1].total-a[1].total);
-  const mx = sorted[0]?.[1].total || 1;
-
-  el.innerHTML = sorted.map(([kat, data]) => {
-    const pct = (data.total/totalIn*100).toFixed(2).replace('.', ',');
-    const subRows = inShowSubs
-      ? Object.entries(data.subs).sort((a,b)=>b[1]-a[1])
-        .map(([sub,val])=>`<div class="ir-sub"><span>${escapeHtml(sub)}</span><span>${fmtRp(val)}</span></div>`).join('')
-      : '';
-    return `<div class="ir-item" onclick='jumpToHistory(${jsArg(kat)})' style="cursor:pointer;">
-      <div class="ir-head">
-        <span class="ir-kat">${escapeHtml(kat)}</span>
-        <span class="ir-val in">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
-      </div>
-      <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/totalIn*100)}%;background:var(--in)"></div></div>
-      ${inShowSubs ? `<div class="ir-subs">${subRows}</div>` : ''}
-    </div>`;
-  }).join('');
+  renderRekap(el, ins, 'in', inCatView, inShowSubs, 0);
 }
 
 function renderOutRekap(outs) {
   const el = document.getElementById('dash-out-rekap');
   const btnShow = document.getElementById('btn-show-all-out');
   if (!el) return;
-  const totalOut = outs.reduce((s,t)=>s+t.nominal,0);
-
   if (!outs.length) {
-    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:10px 0;">Belum ada pengeluaran bulan ini</p>';
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:14px;">Belum ada pengeluaran bulan ini</p>';
     if (btnShow) btnShow.style.display = 'none';
     return;
   }
-
-  if (outCatView === 'sub') {
-    const subMap = {};
-    outs.forEach((t) => {
-      const key = t.sub_kategori || t.kategori;
-      subMap[key] = (subMap[key] || 0) + t.nominal;
-    });
-    let sortedSub = Object.entries(subMap).sort((a,b)=>b[1]-a[1]);
-    const totalItems = sortedSub.length;
-    if (!showAllOut) sortedSub = sortedSub.slice(0, 8);
-
-    if (btnShow) {
-      if (totalItems > 8) {
-        btnShow.style.display = 'block';
-        btnShow.textContent = showAllOut ? 'Sembunyikan' : `Lihat Semua (${totalItems})`;
-      } else {
-        btnShow.style.display = 'none';
-      }
-    }
-
-    el.innerHTML = sortedSub.map(([label, val]) => {
-      const pct = (val/totalOut*100).toFixed(2).replace('.', ',');
-      return `<div class="ir-item" onclick='jumpToHistory(${jsArg(label)})' style="cursor:pointer;">
-        <div class="ir-head">
-          <span class="ir-kat">${escapeHtml(label)}</span>
-          <span class="ir-val out">${fmtRp(val)} <span class="ir-pct">${pct}%</span></span>
-        </div>
-        <div class="cb-track"><div class="cb-fill" style="width:${Math.round(val/totalOut*100)}%;background:var(--out)"></div></div>
-      </div>`;
-    }).join('');
-    return;
-  }
-
-  const catMap = {};
-  outs.forEach(t => {
-    if (!catMap[t.kategori]) catMap[t.kategori] = { total: 0, subs: {} };
-    catMap[t.kategori].total += t.nominal;
-    if (t.sub_kategori) catMap[t.kategori].subs[t.sub_kategori] = (catMap[t.kategori].subs[t.sub_kategori]||0) + t.nominal;
-  });
-  let sorted = Object.entries(catMap).sort((a,b)=>b[1].total-a[1].total);
-  const totalItems = sorted.length;
-  if (!showAllOut) sorted = sorted.slice(0, 8);
-
+  const totalItems = renderRekap(el, outs, 'out', outCatView, outShowSubs, showAllOut ? 0 : REKAP_LIMIT);
   if (btnShow) {
-    if (totalItems > 8) {
+    if (totalItems > REKAP_LIMIT) {
       btnShow.style.display = 'block';
       btnShow.textContent = showAllOut ? 'Sembunyikan' : `Lihat Semua (${totalItems})`;
     } else {
       btnShow.style.display = 'none';
     }
   }
+}
 
-  el.innerHTML = sorted.map(([kat, data]) => {
-    const pct = (data.total/totalOut*100).toFixed(2).replace('.', ',');
-    const subRows = outShowSubs
-      ? Object.entries(data.subs).sort((a,b)=>b[1]-a[1])
-        .map(([sub,val])=>`<div class="ir-sub"><span>${escapeHtml(sub)}</span><span>${fmtRp(val)}</span></div>`).join('')
-      : '';
-    return `<div class="ir-item" onclick='jumpToHistory(${jsArg(kat)})' style="cursor:pointer;">
-      <div class="ir-head">
-        <span class="ir-kat">${escapeHtml(kat)}</span>
-        <span class="ir-val out">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
-      </div>
-      <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/totalOut*100)}%;background:var(--out)"></div></div>
-      ${outShowSubs ? `<div class="ir-subs">${subRows}</div>` : ''}
-    </div>`;
+// ---- GRAFIK PENGELUARAN HARIAN ----
+let dailyChartData = null;
+
+function renderDailyChart(mon, outs) {
+  const el = document.getElementById('dash-daily');
+  if (!el) return;
+  if (!mon || mon === 'all' || !outs.length) { el.innerHTML = ''; dailyChartData = null; return; }
+
+  const [y, m] = mon.split('-').map(Number);
+  const days = new Date(y, m, 0).getDate();
+  const totals = Array(days).fill(0);
+  outs.forEach((t) => {
+    const d = parseInt((t.tanggal || '').slice(8, 10), 10);
+    if (d >= 1 && d <= days) totals[d - 1] += t.nominal;
+  });
+
+  const max = Math.max(...totals, 1);
+  const today = todayISO();
+  const isCurrent = mon === today.slice(0, 7);
+  const todayD = isCurrent ? parseInt(today.slice(8, 10), 10) : 0;
+  const peakD = totals.indexOf(Math.max(...totals)) + 1;
+  dailyChartData = { mon, totals };
+
+  const bars = totals.map((v, i) => {
+    const d = i + 1;
+    const cls = ['dc-bar', d === todayD ? 'today' : '', isCurrent && d > todayD ? 'future' : '', v ? '' : 'zero'].filter(Boolean).join(' ');
+    const h = v ? Math.max(v / max * 100, 5) : 0;
+    return `<button type="button" class="${cls}" data-day="${d}" onclick="showDailyInfo(${d})" aria-label="Tanggal ${d}: ${fmtRp(v)}"><i style="height:${h.toFixed(1)}%"></i></button>`;
   }).join('');
+
+  el.innerHTML = `
+    <div class="section-row" style="margin-top:22px;"><span class="section-label">Pengeluaran Harian</span></div>
+    <div class="dc-card">
+      <div class="dc-info" id="dc-info"></div>
+      <div class="dc-bars">${bars}</div>
+      <div class="dc-axis"><span>1</span><span>${Math.ceil(days / 2)}</span><span>${days}</span></div>
+    </div>`;
+  showDailyInfo(isCurrent ? todayD : peakD);
+}
+
+function showDailyInfo(day) {
+  const info = document.getElementById('dc-info');
+  if (!info || !dailyChartData) return;
+  const iso = `${dailyChartData.mon}-${String(day).padStart(2, '0')}`;
+  const val = dailyChartData.totals[day - 1] || 0;
+  document.querySelectorAll('#dash-daily .dc-bar').forEach((b) => b.classList.toggle('sel', Number(b.dataset.day) === day));
+  info.innerHTML = `<span>${getIndonesianDayName(iso)}, ${fmtDate(iso)}${iso === todayISO() ? ' · hari ini' : ''}</span><b>${val ? fmtRp(val) : 'Tidak ada pengeluaran'}</b>`;
 }
 
 function switchInView(view) {
@@ -1870,7 +1876,7 @@ function cancelBudgetEdit() {
   const toggleBtn = document.getElementById('btn-toggle-budget-form');
   if (toggleBtn) {
     toggleBtn.textContent = '+ Aturan';
-    toggleBtn.style.background = 'var(--accent)';
+    toggleBtn.classList.remove('is-open');
   }
 
   const btn = document.getElementById('btn-save-budget');
@@ -1883,7 +1889,7 @@ function renderBudgetRules() {
   if (!list) return;
 
   if (budgetRules.length === 0) {
-    list.innerHTML = '<div style="text-align:center;color:var(--text-light);font-size:13px;padding:20px;">Belum ada aturan budget.</div>';
+    list.innerHTML = '<div style="text-align:center;color:var(--text-3);font-size:13px;padding:20px;">Belum ada aturan budget.</div>';
     return;
   }
 
@@ -1921,12 +1927,13 @@ function renderBudgetRules() {
 
     // 3. KALKULASI PERSENTASE & WARNA WARNI EVALUASI
     const pct = limitVal > 0 ? (usage / limitVal) * 100 : 0;
-    const barColor = pct >= 100 ? 'var(--out)' : pct >= 80 ? '#F3C97B' : 'var(--accent)';
+    const barColor = pct >= 100 ? 'var(--out)' : pct >= 80 ? 'var(--warn-bar)' : 'var(--accent)';
+    const statusColor = pct >= 100 ? 'var(--out)' : pct >= 80 ? 'var(--warn)' : 'var(--text-2)';
     const statusText = pct >= 100 
-      ? `🚨 Over Budget! (${pct.toFixed(1)}%)` 
+      ? `${icon('danger', 13)} Over budget (${pct.toFixed(1)}%)` 
       : pct >= 80 
-        ? `⚠️ Mendekati Batas (${pct.toFixed(1)}%)` 
-        : `${pct.toFixed(1)}% Terpakai`;
+        ? `${icon('warn', 13)} Mendekati batas (${pct.toFixed(1)}%)` 
+        : `${pct.toFixed(1)}% terpakai`;
 
     return `
       <div class="budget-rule-card" style="background:#fff; padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px; display:flex; flex-direction:column; gap:12px;">
@@ -1938,8 +1945,8 @@ function renderBudgetRules() {
             </div>
           </div>
           <div style="display:flex; gap:6px;">
-            <button onclick="editBudgetRule('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">Edit</button>
-            <button onclick="deleteBudgetRule('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:5px 10px; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer;">Hapus</button>
+            <button onclick="editBudgetRule('${r.id}')" class="btn-sm ghost">Edit</button>
+            <button onclick="deleteBudgetRule('${r.id}')" class="btn-sm danger">Hapus</button>
           </div>
         </div>
 
@@ -1951,7 +1958,7 @@ function renderBudgetRules() {
           <div style="width:100%; height:7px; background:rgba(0,0,0,0.05); border-radius:4px; overflow:hidden;">
             <div style="height:100%; width:${Math.min(pct, 100)}%; background:${barColor}; border-radius:4px; transition: width 0.3s ease;"></div>
           </div>
-          <div style="text-align:right; font-size:11px; font-weight:700; color:${barColor}; margin-top:4px;">
+          <div class="rule-status" style="color:${statusColor};">
             ${statusText}
           </div>
         </div>
@@ -2006,7 +2013,7 @@ function editBudgetRule(id) {
   const toggleBtn = document.getElementById('btn-toggle-budget-form');
   if (toggleBtn) {
     toggleBtn.textContent = '✕ Tutup';
-    toggleBtn.style.background = 'var(--out)';
+    toggleBtn.classList.add('is-open');
   }
   
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2082,36 +2089,30 @@ function checkBudgetAlerts() {
         const pct = (usage / limitVal) * 100;
         if (pct >= 80) { // Hanya muncul jika sudah >= 80%
           const isDanger = pct >= 100;
-          const bgColor = isDanger ? '#FFF0F0' : '#FFF9E6'; // Merah Muda vs Kuning Muda
-          const color = isDanger ? 'var(--out)' : '#B8860B';
-          const icon = isDanger ? '🚨' : '⚠️';
           const title = r.scope === 'all' ? 'Seluruh Pengeluaran' : r.target;
-          
-          let detailLimit = fmtRp(limitVal);
+
+          let basis = '';
           if (r.type === 'percent') {
-            let baseStr = r.base === 'in' ? 'Total Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${escapeHtml(r.baseTarget)}`;
-            detailLimit = `${fmtRp(limitVal)} (${r.limit}% dari ${baseStr})`;
+            const baseStr = r.base === 'in' ? 'pemasukan' : r.base === 'out' ? 'pengeluaran' : escapeHtml(r.baseTarget);
+            basis = ` · ${r.limit}% dari ${baseStr}`;
           }
-          
+
           alertsHtml += `
-            <div style="background:${bgColor}; border:1px solid ${color}; border-radius:10px; padding:14px; margin-bottom:12px; display:flex; align-items:flex-start; gap:12px;">
-              <div style="font-size:22px;">${icon}</div>
-              <div style="flex:1;">
-                <div style="font-size:14px; font-weight:700; color:${color}; margin-bottom:4px;">${escapeHtml(title)}</div>
-                <div style="font-size:12px; color:var(--text); line-height:1.4;">Pemakaian: <b>${fmtRp(usage)}</b> dari batas ${detailLimit} - Terpakai ${pct.toFixed(1)}%</div>
-                <div style="width:100%; height:8px; background:rgba(0,0,0,0.06); border-radius:4px; margin-top:10px; overflow:hidden;">
-                  <div style="height:100%; width:${Math.min(pct, 100)}%; background:${color}; border-radius:4px;"></div>
-                </div>
+            <div class="al-row ${isDanger ? 'danger' : 'warn'}">
+              <span class="al-ico">${icon(isDanger ? 'danger' : 'warn', 18)}</span>
+              <div class="al-body">
+                <div class="al-title"><span>${escapeHtml(title)}</span><span class="al-pct">${Math.round(pct)}%</span></div>
+                <div class="al-sub">${fmtRp(usage)} dari ${fmtRp(limitVal)}${basis}</div>
+                <div class="al-bar"><i style="width:${Math.min(pct, 100)}%"></i></div>
               </div>
-            </div>
-          `;
+            </div>`;
         }
       }
     });
   }
 
   if (alertsHtml) {
-    budgetAlertsHtml = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Peringatan Budget</span></div>` + alertsHtml;
+    budgetAlertsHtml = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Peringatan Budget</span></div><div class="alert-panel">${alertsHtml}</div>`;
   }
 
   // Baca billReminders
@@ -2244,39 +2245,24 @@ function checkBudgetAlerts() {
             return;
           }
 
-          const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 600; color: var(--text-2); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
+          const isLate = diffDays < 0 && !isSettled;
+          const dueShort = diffDays === 0 ? 'Hari ini' : diffDays === 1 ? 'Besok' : `Telat ${Math.abs(diffDays)} hari`;
+          const amount = r.nominal > 0 ? ` · <span class="nowrap">${fmtRp(r.nominal)}</span>` : '';
+          const settleCall = `toggleSettleReminder(${jsArg(r.id)}, ${jsArg(occurrenceStr)})`;
+          const actions = isSettled
+            ? `<span class="al-done">${icon('check', 14)}Lunas</span><button class="btn-sm ghost" onclick="${settleCall}">Batal</button>`
+            : `<button class="btn-sm pri" onclick="payBillReminder(${jsArg(r.name)}, ${Number(r.nominal) || 0}, ${jsArg(r.kategori || '')}, ${jsArg(r.sub_kategori || '')}, ${jsArg(r.urgensi || 'Kebutuhan')}, ${jsArg(r.utilitas || 'Consumptive')})">Input</button><button class="btn-sm ok" onclick="${settleCall}">Selesai</button>`;
 
-          if (isSettled) {
-            const cardHtml = `
-              <div class="reminder-alert-card" style="opacity: 0.55; background: rgba(0, 0, 0, 0.02); border: 1px dashed rgba(0,0,0,0.1); border-radius: 10px; padding: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                <div style="flex: 1;">
-                  <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 4px;">📅 ${escapeHtml(r.name)}</div>
-                  <div style="font-size: 12px; color: var(--text); line-height: 1.4;">Jatuh tempo: <b>${dueLabel}</b> (${descText})</div>
-                  ${nominalHtml}
-                </div>
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <span style="font-size: 11px; font-weight: 600; color: var(--in);">✓ Selesai Dibayar</span>
-                  <button onclick="toggleSettleReminder('${r.id}', '${occurrenceStr}')" style="background: var(--bg-soft); color: var(--text-2); border: 1px solid var(--border); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Batal</button>
-                </div>
+          const cardHtml = `
+            <div class="al-row bill${isSettled ? ' settled' : ''}${isLate ? ' late' : ''}" title="${escapeHtml(dueLabel)} (${escapeHtml(descText)})">
+              <span class="al-ico">${icon('calendar', 18)}</span>
+              <div class="al-body">
+                <div class="al-title"><span>${escapeHtml(r.name)}</span></div>
+                <div class="al-sub"><b>${dueShort}</b>${amount}</div>
               </div>
-            `;
-            reminderCards.push({ html: cardHtml, isSettled: isSettled });
-          } else {
-            const cardHtml = `
-              <div class="reminder-alert-card" style="background: rgba(122, 98, 69, 0.1); border: 1px solid rgba(122, 98, 69, 0.25); border-radius: 10px; padding: 14px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
-                <div style="flex: 1;">
-                  <div style="font-size: 14px; font-weight: 700; color: var(--accent); margin-bottom: 4px;">📅 ${escapeHtml(r.name)}</div>
-                  <div style="font-size: 12px; color: var(--text); line-height: 1.4;">Jatuh tempo: <b>${dueLabel}</b> (${descText})</div>
-                  ${nominalHtml}
-                </div>
-                <div style="display: flex; gap: 6px; align-items: center;">
-                  <button onclick="payBillReminder(${jsArg(r.name)}, ${Number(r.nominal) || 0}, ${jsArg(r.kategori || '')}, ${jsArg(r.sub_kategori || '')}, ${jsArg(r.urgensi || 'Kebutuhan')}, ${jsArg(r.utilitas || 'Consumptive')})" style="background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Input</button>
-                  <button onclick="toggleSettleReminder('${r.id}', '${occurrenceStr}')" style="background: #EAF3E1; color: var(--in); border: 1px solid rgba(61,107,64,0.3); padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Selesai</button>
-                </div>
-              </div>
-            `;
-            reminderCards.push({ html: cardHtml, isSettled: isSettled });
-          }
+              <div class="al-actions">${actions}</div>
+            </div>`;
+          reminderCards.push({ html: cardHtml, isSettled: isSettled });
         }
       }
     });
@@ -2290,7 +2276,7 @@ function checkBudgetAlerts() {
     const remindersHtml = reminderCards.map(c => c.html).join('');
     if (remindersHtml) {
       const headerHtml = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Pengingat Tagihan Terdekat</span></div>`;
-      billRemindersHtml = headerHtml + remindersHtml;
+      billRemindersHtml = headerHtml + `<div class="alert-panel">${remindersHtml}</div>`;
     }
   }
 
@@ -2577,7 +2563,7 @@ function cancelReminderEdit() {
   const toggleBtn = document.getElementById('btn-toggle-reminder-form');
   if (toggleBtn) {
     toggleBtn.textContent = '+ Tagihan';
-    toggleBtn.style.background = 'var(--accent)';
+    toggleBtn.classList.remove('is-open');
   }
 
   const btn = document.getElementById('btn-save-reminder');
@@ -2656,7 +2642,7 @@ function renderBillReminders() {
     }
 
     // 4. SUB-JUDUL KELOMPOK (HEADER HTML)
-    finalHtml += `<div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-top: ${isFirst ? '12px' : '22px'}; margin-bottom: 8px;">📌 ${freq}</div>`;
+    finalHtml += `<div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-top: ${isFirst ? '12px' : '22px'}; margin-bottom: 8px;">${freq}</div>`;
     isFirst = false;
 
     // Render cards inside group
@@ -2705,12 +2691,12 @@ function renderBillReminders() {
         <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:10px;">
           <div>
             <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px; display: flex; align-items: center; flex-wrap: wrap;">${escapeHtml(r.name)}${customCycleBadge}</div>
-            <div style="font-size:12px; color:var(--text-light);">${descText}${overdueBadge}</div>
+            <div style="font-size:12px; color:var(--text-3);">${descText}${overdueBadge}</div>
             ${nominalHtml}
           </div>
           <div style="display:flex; gap:6px;">
-            <button onclick="editBillReminder('${r.id}')" style="background:#F0F4F8; color:#334155; border:1px solid #CBD5E1; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Edit</button>
-            <button onclick="deleteBillReminder('${r.id}')" style="background:var(--out); color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Hapus</button>
+            <button onclick="editBillReminder('${r.id}')" class="btn-sm ghost">Edit</button>
+            <button onclick="deleteBillReminder('${r.id}')" class="btn-sm danger">Hapus</button>
           </div>
         </div>
       `;
@@ -2790,7 +2776,7 @@ function editBillReminder(id) {
   const toggleBtn = document.getElementById('btn-toggle-reminder-form');
   if (toggleBtn) {
     toggleBtn.textContent = '✕ Tutup';
-    toggleBtn.style.background = 'var(--out)';
+    toggleBtn.classList.add('is-open');
   }
 
   toggleReminderFreq();
@@ -2848,7 +2834,7 @@ function toggleBudgetForm() {
   if (!card || !btn) return;
   const isHidden = card.classList.toggle('hidden');
   btn.textContent = isHidden ? '+ Aturan' : '✕ Tutup';
-  btn.style.background = isHidden ? 'var(--accent)' : 'var(--out)';
+  btn.classList.toggle('is-open', !isHidden);
 }
 function toggleReminderForm() {
   const card = document.getElementById('reminder-form-card');
@@ -2856,5 +2842,5 @@ function toggleReminderForm() {
   if (!card || !btn) return;
   const isHidden = card.classList.toggle('hidden');
   btn.textContent = isHidden ? '+ Tagihan' : '✕ Tutup';
-  btn.style.background = isHidden ? 'var(--accent)' : 'var(--out)';
+  btn.classList.toggle('is-open', !isHidden);
 }
