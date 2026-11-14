@@ -9,6 +9,28 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Budget Tracker" />
   <title>Budget Tracker</title>
+  <script>
+    // Terapkan tema sebelum halaman digambar agar tidak berkedip.
+    // bt_theme: 'auto' (ikut perangkat) | 'light' | 'dark'
+    (function () {
+      var mq = window.matchMedia('(prefers-color-scheme: dark)');
+      window.applyTheme = function () {
+        var pref = 'auto';
+        try { pref = localStorage.getItem('bt_theme') || 'auto'; } catch (e) {}
+        var dark = pref === 'dark' || (pref === 'auto' && mq.matches);
+        document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', dark ? '#171411' : '#2C2C1E');
+        return dark;
+      };
+      window.applyTheme();
+      var onChange = function () {
+        window.applyTheme();
+        if (typeof window.onThemeChanged === 'function') window.onThemeChanged();
+      };
+      if (mq.addEventListener) mq.addEventListener('change', onChange); else if (mq.addListener) mq.addListener(onChange);
+    })();
+  </script>
   <link rel="manifest" href="./manifest.json" />
   <link rel="icon" type="image/svg+xml" href="./assets/icons/favicon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="./assets/icons/favicon-32x32.png" />
@@ -39,7 +61,7 @@
       height: 18px !important;
       border: 2px solid var(--border) !important;
       border-radius: 4px !important;
-      background: #fff !important;
+      background: var(--bg-card) !important;
       outline: none;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -49,6 +71,9 @@
       position: relative;
       flex-shrink: 0;
       margin: 0 !important;
+      padding: 0 !important;
+      min-width: 18px !important;
+      box-sizing: border-box !important;
     }
 
     /* Saat Checkbox Terpilih (Checked) */
@@ -62,8 +87,8 @@
       content: "" !important; /* Wajib kosongkan konten teks */
       width: 10px !important; /* Lebar ceklis */
       height: 5px !important;  /* Tinggi ceklis */
-      border-left: 2px solid #fff !important; /* Garis tebal sisi kiri */
-      border-bottom: 2px solid #fff !important; /* Garis tebal sisi bawah */
+      border-left: 2px solid var(--on-accent) !important; /* Garis tebal sisi kiri */
+      border-bottom: 2px solid var(--on-accent) !important; /* Garis tebal sisi bawah */
       transform: rotate(-45deg) !important; /* Putar -45 derajat untuk bentuk L */
       
       /* Gunakan posisi relatif dengan margin-top adjustment agar presisi nengah vertikal */
@@ -297,7 +322,7 @@
             <button id="btn-toggle-budget-form" class="btn-pill" onclick="toggleBudgetForm()">+ Aturan</button>
           </div>
           
-          <div id="budget-form-card" class="budget-form-card hidden" style="background: #fff !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
+          <div id="budget-form-card" class="budget-form-card hidden" style="background: var(--bg-card) !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
             <div id="budget-edit-badge" class="hidden" style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:6px 10px; border-radius:6px; text-align:center;">Sedang Mengedit Aturan Budget</div>
             
             <div class="mf-field">
@@ -361,7 +386,7 @@
             <button id="btn-toggle-reminder-form" class="btn-pill" onclick="toggleReminderForm()">+ Tagihan</button>
           </div>
           
-          <div id="reminder-form-card" class="budget-form-card hidden" style="background: #fff !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
+          <div id="reminder-form-card" class="budget-form-card hidden" style="background: var(--bg-card) !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
               <div id="reminder-edit-badge" class="hidden" style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:6px 10px; border-radius:6px; text-align:center;">Sedang Mengedit Pengingat Tagihan</div>
 
               <div class="mf-field">
@@ -463,6 +488,20 @@
       <section id="page-settings" class="page">
         <div class="page-scroll">
           <h2 class="page-title">Pengaturan</h2>
+
+          <div class="cfg-section">
+            <p class="cfg-label">Tampilan</p>
+            <div class="cfg-card">
+              <div class="cfg-field">
+                <label>Tema</label>
+                <div class="theme-switch" id="theme-switch">
+                  <button type="button" class="theme-opt" data-theme-opt="auto" onclick="setTheme('auto')">Otomatis</button>
+                  <button type="button" class="theme-opt" data-theme-opt="light" onclick="setTheme('light')">Terang</button>
+                  <button type="button" class="theme-opt" data-theme-opt="dark" onclick="setTheme('dark')">Gelap</button>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div class="cfg-section">
             <p class="cfg-label">Google Sheets</p>

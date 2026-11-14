@@ -550,6 +550,12 @@ const REKAP_COLORS = {
   out: ['#8B4513', '#C4763A', '#D9A441', '#7A8B5A', '#4F7A6B', '#5E7A99', '#8A6B93', '#B08A7A'],
   in:  ['#3D6B40', '#6F9A5B', '#A3BF7A', '#4F7A6B', '#8FB3A3', '#B9A45C', '#7A8B5A', '#9DB89A']
 };
+// Varian lebih terang supaya tetap terbaca di mode gelap
+const REKAP_COLORS_DARK = {
+  out: ['#E8A07A', '#D9A441', '#C4763A', '#A3B87A', '#6FA896', '#8AA7C7', '#B595BF', '#C9A79A'],
+  in:  ['#8FCB92', '#B5D48E', '#6FA896', '#D4C27A', '#A9C7B8', '#7FB07A', '#C2D4A8', '#9DB89A']
+};
+function isDarkTheme() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 const REKAP_LIMIT = 8;
 
 function fmtPct(part, total) {
@@ -571,7 +577,8 @@ function renderRekap(el, trx, kind, view, showSubs, limit) {
   });
 
   const sorted = Object.entries(map).sort((a, b) => b[1].total - a[1].total);
-  const colors = REKAP_COLORS[kind] || REKAP_COLORS.out;
+  const palette = isDarkTheme() ? REKAP_COLORS_DARK : REKAP_COLORS;
+  const colors = palette[kind] || palette.out;
   const colorOf = (i) => colors[i] || 'var(--text-3)';
 
   const segs = total > 0 ? sorted.map(([label, d], i) =>
@@ -1487,8 +1494,25 @@ async function saveManual() {
   }
 }
 
+// ---- TEMA ----
+function setTheme(pref) {
+  try { localStorage.setItem('bt_theme', pref); } catch (e) {}
+  if (typeof window.applyTheme === 'function') window.applyTheme();
+  onThemeChanged();
+}
+
+// Dipanggil juga oleh skrip di index.html saat tema perangkat berubah (mode Otomatis)
+function onThemeChanged() {
+  const pref = localStorage.getItem('bt_theme') || 'auto';
+  document.querySelectorAll('#theme-switch .theme-opt').forEach((b) => b.classList.toggle('active', b.dataset.themeOpt === pref));
+  if (document.getElementById('app') && !document.getElementById('app').classList.contains('hidden')) loadDashboard();
+}
+window.onThemeChanged = onThemeChanged;
+
 // ---- SETTINGS ----
 function loadSettingsForm() {
+  const themePref = localStorage.getItem('bt_theme') || 'auto';
+  document.querySelectorAll('#theme-switch .theme-opt').forEach((b) => b.classList.toggle('active', b.dataset.themeOpt === themePref));
   document.getElementById('cfg-sheet-id').value  = getCfg(CFG.SHEET_ID);
   document.getElementById('cfg-google-key').value = getCfg(CFG.GOOGLE_KEY);
   document.getElementById('cfg-gemini-key').value = getCfg(CFG.GEMINI_KEY);
@@ -1939,7 +1963,7 @@ function renderBudgetRules() {
         : `${pct.toFixed(1)}% terpakai`;
 
     return `
-      <div class="budget-rule-card" style="background:#fff; padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px; display:flex; flex-direction:column; gap:12px;">
+      <div class="budget-rule-card" style="padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px; display:flex; flex-direction:column; gap:12px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
           <div>
             <div style="font-weight:700; font-size:15px; color:var(--text); margin-bottom:2px;">${escapeHtml(title)}</div>
@@ -1958,7 +1982,7 @@ function renderBudgetRules() {
             <span>Terpakai: <b>${fmtRp(usage)}</b></span>
             <span>Batas: <b>${fmtRp(limitVal)}</b></span>
           </div>
-          <div style="width:100%; height:7px; background:rgba(0,0,0,0.05); border-radius:4px; overflow:hidden;">
+          <div style="width:100%; height:7px; background:var(--bg-muted); border-radius:4px; overflow:hidden;">
             <div style="height:100%; width:${Math.min(pct, 100)}%; background:${barColor}; border-radius:4px; transition: width 0.3s ease;"></div>
           </div>
           <div class="rule-status" style="color:${statusColor};">
@@ -2691,7 +2715,7 @@ function renderBillReminders() {
       const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
 
       return `
-        <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:14px; border-radius:8px; border:1px solid #eee; margin-bottom:10px;">
+        <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; padding:14px; border-radius:var(--r-md); border:1px solid var(--border); margin-bottom:10px;">
           <div>
             <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px; display: flex; align-items: center; flex-wrap: wrap;">${escapeHtml(r.name)}${customCycleBadge}</div>
             <div style="font-size:12px; color:var(--text-3);">${descText}${overdueBadge}</div>
