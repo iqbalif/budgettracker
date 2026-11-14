@@ -365,7 +365,7 @@ function renderTop3Transactions(outs) {
   }
 
   el.innerHTML = top3.map((t) => `
-    <div class="top3-item" onclick='openTrxModal(${JSON.stringify(JSON.stringify(t))})'>
+    <div class="top3-item" onclick='openTrxModal(${jsArg(JSON.stringify(t))})'>
       <div class="top3-left">${escapeHtml(t.deskripsi || '(tanpa deskripsi)')}${t.sub_kategori ? `<span class="top3-sub"> · ${escapeHtml(t.sub_kategori)}</span>` : ''}</div>
       <div class="top3-right">${fmtRp(t.nominal)}</div>
     </div>
@@ -410,6 +410,12 @@ function escapeHtml(value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+// Nilai JS (string/objek) yang aman ditaruh di dalam atribut onclick="..." / onclick='...'.
+// JSON.stringify membuat literal JS-nya, escapeHtml menjaga tanda petik (' dan ") tidak memutus atribut HTML.
+function jsArg(value) {
+  return escapeHtml(JSON.stringify(value ?? ''));
 }
 
 function parseNominalInputValue(value) {
@@ -547,9 +553,9 @@ function renderInRekap(ins) {
     const sortedSub = Object.entries(subMap).sort((a,b)=>b[1]-a[1]);
     el.innerHTML = sortedSub.map(([label, val]) => {
       const pct = (val/totalIn*100).toFixed(2).replace('.', ',');
-      return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(label)})' style="cursor:pointer;">
+      return `<div class="ir-item" onclick='jumpToHistory(${jsArg(label)})' style="cursor:pointer;">
         <div class="ir-head">
-          <span class="ir-kat">${label}</span>
+          <span class="ir-kat">${escapeHtml(label)}</span>
           <span class="ir-val in">${fmtRp(val)} <span class="ir-pct">${pct}%</span></span>
         </div>
         <div class="cb-track"><div class="cb-fill" style="width:${Math.round(val/totalIn*100)}%;background:var(--in)"></div></div>
@@ -571,11 +577,11 @@ function renderInRekap(ins) {
     const pct = (data.total/totalIn*100).toFixed(2).replace('.', ',');
     const subRows = inShowSubs
       ? Object.entries(data.subs).sort((a,b)=>b[1]-a[1])
-        .map(([sub,val])=>`<div class="ir-sub"><span>${sub}</span><span>${fmtRp(val)}</span></div>`).join('')
+        .map(([sub,val])=>`<div class="ir-sub"><span>${escapeHtml(sub)}</span><span>${fmtRp(val)}</span></div>`).join('')
       : '';
-    return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(kat)})' style="cursor:pointer;">
+    return `<div class="ir-item" onclick='jumpToHistory(${jsArg(kat)})' style="cursor:pointer;">
       <div class="ir-head">
-        <span class="ir-kat">${kat}</span>
+        <span class="ir-kat">${escapeHtml(kat)}</span>
         <span class="ir-val in">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
       </div>
       <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/totalIn*100)}%;background:var(--in)"></div></div>
@@ -617,9 +623,9 @@ function renderOutRekap(outs) {
 
     el.innerHTML = sortedSub.map(([label, val]) => {
       const pct = (val/totalOut*100).toFixed(2).replace('.', ',');
-      return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(label)})' style="cursor:pointer;">
+      return `<div class="ir-item" onclick='jumpToHistory(${jsArg(label)})' style="cursor:pointer;">
         <div class="ir-head">
-          <span class="ir-kat">${label}</span>
+          <span class="ir-kat">${escapeHtml(label)}</span>
           <span class="ir-val out">${fmtRp(val)} <span class="ir-pct">${pct}%</span></span>
         </div>
         <div class="cb-track"><div class="cb-fill" style="width:${Math.round(val/totalOut*100)}%;background:var(--out)"></div></div>
@@ -651,11 +657,11 @@ function renderOutRekap(outs) {
     const pct = (data.total/totalOut*100).toFixed(2).replace('.', ',');
     const subRows = outShowSubs
       ? Object.entries(data.subs).sort((a,b)=>b[1]-a[1])
-        .map(([sub,val])=>`<div class="ir-sub"><span>${sub}</span><span>${fmtRp(val)}</span></div>`).join('')
+        .map(([sub,val])=>`<div class="ir-sub"><span>${escapeHtml(sub)}</span><span>${fmtRp(val)}</span></div>`).join('')
       : '';
-    return `<div class="ir-item" onclick='jumpToHistory(${JSON.stringify(kat)})' style="cursor:pointer;">
+    return `<div class="ir-item" onclick='jumpToHistory(${jsArg(kat)})' style="cursor:pointer;">
       <div class="ir-head">
-        <span class="ir-kat">${kat}</span>
+        <span class="ir-kat">${escapeHtml(kat)}</span>
         <span class="ir-val out">${fmtRp(data.total)} <span class="ir-pct">${pct}%</span></span>
       </div>
       <div class="cb-track"><div class="cb-fill" style="width:${Math.round(data.total/totalOut*100)}%;background:var(--out)"></div></div>
@@ -843,7 +849,7 @@ function renderTopBars(outs) {
                   ${kat}
                   ${hasSubs ? `<svg class="chevron ${isExp?'open':''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>` : ''}
                 </span>
-                <button class="cb-jump" type="button" onclick='event.stopPropagation();jumpToHistory(${JSON.stringify(kat)})'>→ Riwayat</button>
+                <button class="cb-jump" type="button" onclick='event.stopPropagation();jumpToHistory(${jsArg(kat)})'>→ Riwayat</button>
               </span>
               <span>${fmtRp(data.total)}</span>
             </div>
@@ -1014,15 +1020,15 @@ function exportCSV() {
 function trxCard(t) {
   const isOut = t.type === 'out';
   const badges = isOut ? `
-    ${t.urgensi ? `<span class="tbadge ${t.urgensi==='Kebutuhan'?'b-need':'b-want'}">${t.urgensi}</span>` : ''}
+    ${t.urgensi ? `<span class="tbadge ${t.urgensi==='Kebutuhan'?'b-need':'b-want'}">${escapeHtml(t.urgensi)}</span>` : ''}
     ${t.utilitas === 'Productive' ? `<span class="tbadge b-prod">Productive</span>` : ''}
   ` : '';
   return `
-    <div class="trx-card" onclick='openTrxModal(${JSON.stringify(JSON.stringify(t))})'>
+    <div class="trx-card" onclick='openTrxModal(${jsArg(JSON.stringify(t))})'>
       <div class="trx-left">
-        <div class="trx-desc">${t.deskripsi || '(tanpa deskripsi)'}</div>
+        <div class="trx-desc">${escapeHtml(t.deskripsi || '(tanpa deskripsi)')}</div>
         <div class="trx-meta">
-          <span>${t.kategori}</span>${t.sub_kategori?`<span>· ${t.sub_kategori}</span>`:''}
+          <span>${escapeHtml(t.kategori)}</span>${t.sub_kategori?`<span>· ${escapeHtml(t.sub_kategori)}</span>`:''}
           ${badges}
         </div>
       </div>
@@ -1054,13 +1060,13 @@ function openTrxModal(json) {
     <div style="font-size:24px;font-weight:500;color:${isOut?'var(--out)':'var(--in)'};margin-bottom:18px;">${isOut?'−':'+'}${fmtRp(t.nominal)}</div>
     <div style="margin-bottom:16px;">${rows.map(([k,v])=>`<div class="mdetail-row"><span class="mdetail-key">${escapeHtml(k)}</span><span class="mdetail-val">${escapeHtml(v)}</span></div>`).join('')}</div>
     <div class="modal-icon-actions">
-      <button class="micon-btn edit" type="button" title="Edit" aria-label="Edit transaksi" onclick='openEditModal(${JSON.stringify(JSON.stringify(t))})'>
+      <button class="micon-btn edit" type="button" title="Edit" aria-label="Edit transaksi" onclick='openEditModal(${jsArg(JSON.stringify(t))})'>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
       </button>
-      <button class="micon-btn dup" type="button" title="Duplikasi" aria-label="Duplikasi transaksi" onclick='openDuplicateModal(${JSON.stringify(JSON.stringify(t))})'>
+      <button class="micon-btn dup" type="button" title="Duplikasi" aria-label="Duplikasi transaksi" onclick='openDuplicateModal(${jsArg(JSON.stringify(t))})'>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       </button>
-      <button class="micon-btn del" type="button" title="Hapus" aria-label="Hapus transaksi" onclick='confirmDelete(${JSON.stringify(JSON.stringify(t))})'>
+      <button class="micon-btn del" type="button" title="Hapus" aria-label="Hapus transaksi" onclick='confirmDelete(${jsArg(JSON.stringify(t))})'>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
       </button>
       <button class="micon-btn close" type="button" title="Tutup" aria-label="Tutup modal" onclick="closeModal()">
@@ -1099,8 +1105,8 @@ function openEditModal(json) {
       <select id="e-util"><option ${t.utilitas==='Consumptive'?'selected':''}>Consumptive</option><option ${t.utilitas==='Productive'?'selected':''}>Productive</option></select>
     </div>` : ''}
     <div class="modal-actions">
-      <button class="mbtn sec" onclick='openTrxModal(${JSON.stringify(JSON.stringify(t))})'>Batal</button>
-      <button class="mbtn pri" onclick='doEdit(${JSON.stringify(JSON.stringify(t))})'>Simpan</button>
+      <button class="mbtn sec" onclick='openTrxModal(${jsArg(JSON.stringify(t))})'>Batal</button>
+      <button class="mbtn pri" onclick='doEdit(${jsArg(JSON.stringify(t))})'>Simpan</button>
     </div>`;
   attachNominalFormatter('e-nominal');
   openModal();
@@ -1134,8 +1140,8 @@ function openDuplicateModal(json) {
       <select id="e-util"><option ${t.utilitas==='Consumptive'?'selected':''}>Consumptive</option><option ${t.utilitas==='Productive'?'selected':''}>Productive</option></select>
     </div>` : ''}
     <div class="modal-actions">
-      <button class="mbtn sec" onclick='openTrxModal(${JSON.stringify(JSON.stringify(t))})'>Batal</button>
-      <button class="mbtn pri" onclick='doDuplicate(${JSON.stringify(JSON.stringify(t))})'>Simpan Baru</button>
+      <button class="mbtn sec" onclick='openTrxModal(${jsArg(JSON.stringify(t))})'>Batal</button>
+      <button class="mbtn pri" onclick='doDuplicate(${jsArg(JSON.stringify(t))})'>Simpan Baru</button>
     </div>`;
   attachNominalFormatter('e-nominal');
   openModal();
@@ -1215,10 +1221,10 @@ function confirmDelete(json) {
   const t = JSON.parse(json);
   document.getElementById('modal-content').innerHTML = `
     <h2 class="modal-title">Hapus Transaksi?</h2>
-    <p style="font-size:14px;color:var(--text-2);margin-bottom:22px;">"${t.deskripsi}" — ${fmtRp(t.nominal)}<br>Aksi ini tidak bisa dibatalkan.</p>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:22px;">"${escapeHtml(t.deskripsi)}" — ${fmtRp(t.nominal)}<br>Aksi ini tidak bisa dibatalkan.</p>
     <div class="modal-actions">
       <button class="mbtn sec" onclick="closeModal()">Batal</button>
-      <button class="mbtn del" onclick='doDelete(${JSON.stringify(JSON.stringify(t))})'>Hapus</button>
+      <button class="mbtn del" onclick='doDelete(${jsArg(JSON.stringify(t))})'>Hapus</button>
     </div>`;
 }
 
@@ -1542,14 +1548,10 @@ async function syncBudgetRulesToCloud() {
     r.limit || 0
   ]);
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: "overwrite_all", sheet: "BudgetRules", values: array2D }),
-      mode: 'no-cors'
-    });
+    await Sheets.post({ action: "overwrite_all", sheet: "BudgetRules", values: array2D });
   } catch(e) {
     console.error('Failed to sync budget rules', e);
+    showToast('Aturan budget belum tersimpan ke Sheets: ' + e.message);
   }
 }
 
@@ -1612,14 +1614,10 @@ async function syncBillRemindersToCloud() {
     r.settled_history || ''
   ]);
   try {
-    await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: "overwrite_all", sheet: "Reminders", values: array2D }),
-      mode: 'no-cors'
-    });
+    await Sheets.post({ action: "overwrite_all", sheet: "Reminders", values: array2D });
   } catch(e) {
     console.error('Failed to sync bill reminders', e);
+    showToast('Pengingat belum tersimpan ke Sheets: ' + e.message);
   }
 }
 
@@ -1934,9 +1932,9 @@ function renderBudgetRules() {
       <div class="budget-rule-card" style="background:#fff; padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px; display:flex; flex-direction:column; gap:12px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
           <div>
-            <div style="font-weight:700; font-size:15px; color:var(--text); margin-bottom:2px;">${title}</div>
+            <div style="font-weight:700; font-size:15px; color:var(--text); margin-bottom:2px;">${escapeHtml(title)}</div>
             <div style="font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:0.02em;">
-              ${r.type === 'percent' ? `Persentase: ${r.limit}% dari ${r.base === 'in' ? 'Pemasukan' : r.base === 'out' ? 'Pengeluaran' : r.baseTarget}` : 'Nominal Tetap'}
+              ${r.type === 'percent' ? `Persentase: ${r.limit}% dari ${r.base === 'in' ? 'Pemasukan' : r.base === 'out' ? 'Pengeluaran' : escapeHtml(r.baseTarget)}` : 'Nominal Tetap'}
             </div>
           </div>
           <div style="display:flex; gap:6px;">
@@ -2091,7 +2089,7 @@ function checkBudgetAlerts() {
           
           let detailLimit = fmtRp(limitVal);
           if (r.type === 'percent') {
-            let baseStr = r.base === 'in' ? 'Total Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${r.baseTarget}`;
+            let baseStr = r.base === 'in' ? 'Total Pemasukan' : r.base === 'out' ? 'Total Pengeluaran' : `${r.base === 'kategori' ? 'Kategori' : 'Sub'} ${escapeHtml(r.baseTarget)}`;
             detailLimit = `${fmtRp(limitVal)} (${r.limit}% dari ${baseStr})`;
           }
           
@@ -2099,7 +2097,7 @@ function checkBudgetAlerts() {
             <div style="background:${bgColor}; border:1px solid ${color}; border-radius:10px; padding:14px; margin-bottom:12px; display:flex; align-items:flex-start; gap:12px;">
               <div style="font-size:22px;">${icon}</div>
               <div style="flex:1;">
-                <div style="font-size:14px; font-weight:700; color:${color}; margin-bottom:4px;">${title}</div>
+                <div style="font-size:14px; font-weight:700; color:${color}; margin-bottom:4px;">${escapeHtml(title)}</div>
                 <div style="font-size:12px; color:var(--text); line-height:1.4;">Pemakaian: <b>${fmtRp(usage)}</b> dari batas ${detailLimit} - Terpakai ${pct.toFixed(1)}%</div>
                 <div style="width:100%; height:8px; background:rgba(0,0,0,0.06); border-radius:4px; margin-top:10px; overflow:hidden;">
                   <div style="height:100%; width:${Math.min(pct, 100)}%; background:${color}; border-radius:4px;"></div>
@@ -2272,7 +2270,7 @@ function checkBudgetAlerts() {
                   ${nominalHtml}
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center;">
-                  <button onclick="payBillReminder('${escapeHtml(r.name).replace(/'/g, "\\'")}', ${r.nominal}, '${escapeHtml(r.kategori || '').replace(/'/g, "\\'")}', '${escapeHtml(r.sub_kategori || '').replace(/'/g, "\\'")}', '${escapeHtml(r.urgensi || 'Kebutuhan').replace(/'/g, "\\'")}', '${escapeHtml(r.utilitas || 'Consumptive').replace(/'/g, "\\'")}')" style="background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Input</button>
+                  <button onclick="payBillReminder(${jsArg(r.name)}, ${Number(r.nominal) || 0}, ${jsArg(r.kategori || '')}, ${jsArg(r.sub_kategori || '')}, ${jsArg(r.urgensi || 'Kebutuhan')}, ${jsArg(r.utilitas || 'Consumptive')})" style="background: var(--accent); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Input</button>
                   <button onclick="toggleSettleReminder('${r.id}', '${occurrenceStr}')" style="background: #EAF3E1; color: var(--in); border: 1px solid rgba(61,107,64,0.3); padding: 6px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap;">Selesai</button>
                 </div>
               </div>

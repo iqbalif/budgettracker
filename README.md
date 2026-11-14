@@ -174,128 +174,14 @@ Google Sheets API dengan API Key hanya bisa membaca. Untuk menulis, mengedit, me
 
 ### Kode Apps Script
 
-Buka Google Sheets → **Extensions → Apps Script**, lalu paste kode berikut:
+Buka Google Sheets → **Extensions → Apps Script**, lalu paste seluruh isi file [`apps-script/Code.gs`](apps-script/Code.gs) dan isi `spreadsheetId` di baris paling atas.
 
-```javascript
-// ============================================
-// BUDGET TRACKER - PWA BACKEND (WEB APP ONLY)
-// ============================================
+Yang dilakukan script ini:
 
-var spreadsheetId = "MASUKKAN_SPREADSHEET_ID_KAMU";
-
-function doPost(e) {
-  var lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) {
-    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Sistem sibuk, coba lagi" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  try {
-    var contents;
-    try {
-      contents = JSON.parse(e.postData.contents);
-    } catch (err) {
-      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Format data tidak valid" }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-
-    if (contents.action) {
-      return handleWebAppRequest(contents);
-    }
-    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: "Aksi tidak dikenali" }))
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function handleWebAppRequest(data) {
-  try {
-    var ss = SpreadsheetApp.openById(spreadsheetId);
-    var sheet = ss.getSheetByName(data.sheet);
-    if (!sheet) throw new Error("Sheet tidak ditemukan: " + data.sheet);
-
-    if (data.action === "append") {
-      // Cari baris kosong pertama pada kolom B (Tanggal), tulis di sana
-      var firstEmptyRow = findFirstEmptyRowByColumn(sheet, 2);
-      sheet.getRange(firstEmptyRow, 1, 1, data.values.length).setValues([data.values]);
-
-    } else if (data.action === "update") {
-      sheet.getRange(data.row, 1, 1, data.values.length).setValues([data.values]);
-
-    } else if (data.action === "delete") {
-      // clearContent (bukan deleteRow) agar nomor baris data lain tidak bergeser
-      sheet.getRange(data.row, 1, 1, sheet.getLastColumn()).clearContent();
-
-    } else if (data.action === "overwrite_all") {
-      // Digunakan oleh modul Budgeting & Pengingat untuk menyimpan seluruh data sekaligus
-      var lastRow = sheet.getLastRow();
-      if (lastRow > 1) {
-        sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
-      }
-      if (data.values && data.values.length > 0) {
-        sheet.getRange(2, 1, data.values.length, data.values[0].length).setValues(data.values);
-      }
-
-    } else {
-      throw new Error("Action tidak valid: " + data.action);
-    }
-
-    return ContentService.createTextOutput(JSON.stringify({ ok: true }))
-      .setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function findFirstEmptyRowByColumn(sheet, colIndex) {
-  var range = sheet.getRange(1, colIndex, sheet.getLastRow() || 1, 1);
-  var values = range.getValues();
-  for (var i = 1; i < values.length; i++) {
-    if (values[i][0] === "" || values[i][0] === null) return i + 1;
-  }
-  return values.length + 1;
-}
-
-function doGet(e) {
-  var action = e.parameter.action;
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // Ambil aturan budgeting
-  if (action === "get_rules") {
-    try {
-      var sheet = ss.getSheetByName("BudgetRules");
-      var data = sheet.getDataRange().getValues();
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, data: data }))
-        .setMimeType(ContentService.MimeType.JSON);
-    } catch(err) {
-      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-
-  // Ambil konfigurasi pengingat tagihan
-  if (action === "get_reminders") {
-    try {
-      var sheet = ss.getSheetByName("Reminders");
-      var data = sheet.getDataRange().getValues();
-      return ContentService.createTextOutput(JSON.stringify({ ok: true, data: data }))
-        .setMimeType(ContentService.MimeType.JSON);
-    } catch(err) {
-      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: err.message }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-
-  return ContentService.createTextOutput("Budget Tracker Backend is Active.")
-    .setMimeType(ContentService.MimeType.TEXT);
-}
-```
+- `append` — menulis transaksi baru di baris kosong pertama
+- `update` / `delete` — mencari baris berdasarkan **ID Transaksi** (kolom A), bukan nomor baris, sehingga perangkat dengan data yang belum tersinkron tidak bisa mengenai transaksi yang salah. Nomor baris hanya dipakai untuk baris lama yang tidak punya ID
+- `overwrite_all` — dipakai modul Budgeting & Pengingat
+- Setiap perintah membalas `{ ok: true }` atau `{ ok: false, error }`; aplikasi membaca balasan ini dan menampilkan pesan gagal jika penyimpanan tidak berhasil
 
 ### Cara Deploy
 
@@ -306,7 +192,7 @@ function doGet(e) {
 5. Klik **Deploy** → copy URL yang muncul
 6. Paste URL tersebut ke field **Apps Script URL** di halaman Pengaturan aplikasi
 
-> **Catatan:** Setiap kali kamu mengubah kode Apps Script, kamu harus membuat deployment baru dan mengupdate URL-nya di Pengaturan aplikasi.
+> **Catatan:** Setiap kali kamu mengubah kode Apps Script, perubahan baru aktif setelah di-deploy ulang. Agar URL tidak berubah: **Deploy → Manage deployments → ikon pensil (Edit) → Version: New version → Deploy**. Jika kamu memilih **New deployment**, URL-nya baru dan harus di-update di Pengaturan aplikasi.
 
 ### Kenapa `clearContent` bukan `deleteRow`?
 Aplikasi menyimpan nomor baris (`_row`) saat membaca data. Kalau baris dihapus dengan `deleteRow`, nomor baris semua data di bawahnya bergeser dan operasi edit/hapus berikutnya bisa mengenai baris yang salah. `clearContent` mengosongkan baris tanpa menggeser apapun.

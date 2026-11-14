@@ -20,9 +20,30 @@ const Sheets = (() => {
     return (await r.json()).values || [];
   }
 
+  // Kirim perintah tulis ke Apps Script dan BACA jawabannya.
+  // Content-Type text/plain = "simple request" (tanpa preflight CORS), sehingga
+  // respons JSON { ok, error } dari Apps Script bisa dibaca dan kegagalan tidak lagi diam-diam.
   async function scriptPost(payload) {
-    await fetch(scriptUrl(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), mode: 'no-cors' });
-    return true;
+    const url = scriptUrl();
+    if (!url) throw new Error('Apps Script URL belum diisi di Pengaturan.');
+
+    let r;
+    try {
+      r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      throw new Error('Tidak bisa menghubungi Apps Script. Cek koneksi internet.');
+    }
+
+    let data;
+    try { data = JSON.parse(await r.text()); }
+    catch (e) { throw new Error('Respons Apps Script tidak dikenali. Cek URL & deployment Apps Script.'); }
+
+    if (!data || !data.ok) throw new Error((data && data.error) || 'Apps Script menolak permintaan.');
+    return data;
   }
 
   // ---- TANGGAL KEBAL ERROR ----
@@ -97,8 +118,8 @@ const Sheets = (() => {
 
   async function fetchAll() {
     const [rowsIn, rowsOut] = await Promise.all([
-      gGet(`${getCfg(CFG.SHEET_IN, DEF_SHEET_IN)}!A2:G2000`),
-      gGet(`${getCfg(CFG.SHEET_OUT, DEF_SHEET_OUT)}!A2:I2000`),
+      gGet(`${getCfg(CFG.SHEET_IN, DEF_SHEET_IN)}!A2:G`),
+      gGet(`${getCfg(CFG.SHEET_OUT, DEF_SHEET_OUT)}!A2:I`),
     ]);
     const ins = rowsIn.map((r, i) => parsePemasukan(r, i + 2)).filter(Boolean);
     const outs = rowsOut.map((r, i) => parsePengeluaran(r, i + 2)).filter(Boolean);
@@ -126,19 +147,19 @@ const Sheets = (() => {
     const values = isOut
       ? [trx.id_transaksi, tglFmt, ym, trx.kategori, trx.sub_kategori, trx.deskripsi, trx.nominal, trx.urgensi || '', trx.utilitas || '']
       : [trx.id_transaksi, tglFmt, ym, trx.kategori, trx.sub_kategori, trx.deskripsi, trx.nominal];
-    await scriptPost({ action: 'update', sheet, row: trx._row, values });
+    await scriptPost({ action: 'update', sheet, row: trx._row, id: trx.id_transaksi || '', values });
   }
 
   async function deleteTransaction(trx) {
     const sheet = trx.type === 'in' ? getCfg(CFG.SHEET_IN, DEF_SHEET_IN) : getCfg(CFG.SHEET_OUT, DEF_SHEET_OUT);
-    await scriptPost({ action: 'delete', sheet, row: trx._row });
+    await scriptPost({ action: 'delete', sheet, row: trx._row, id: trx.id_transaksi || '' });
   }
 
   // ---- FUNGSI TARIK KATEGORI OTOMATIS ----
   async function fetchCategories() {
     const [rowsIn, rowsOut] = await Promise.all([
-      gGet('Kategori In!A2:B100'),
-      gGet('Kategori Out!A2:B100')
+      gGet('Kategori In!A2:B'),
+      gGet('Kategori Out!A2:B')
     ]);
 
     function parseToMap(rows) {
@@ -159,5 +180,5 @@ const Sheets = (() => {
     };
   }
 
-  return { fetchAll, addTransaction, updateTransaction, deleteTransaction, fetchCategories };
+  return { fetchAll, addTransaction, updateTransaction, deleteTransaction, fetchCategories, post: scriptPost };
 })();
