@@ -757,3 +757,27 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 .dc-axis{display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-top:4px;}
 @media (hover:hover){.dc-bar:hover i{background:var(--out);}}
 .nowrap{white-space:nowrap;}
+
+/* =====================================================================
+ * RIWAYAT: pencarian + export satu baris, filter berupa chip geser,
+ * transaksi dikelompokkan dalam satu kartu per tanggal
+ * ===================================================================== */
+.hist-top{display:flex;gap:8px;align-items:stretch;margin-bottom:10px;}
+.hist-top .search-bar{flex:1;margin-bottom:0;min-width:0;}
+.hist-export{width:40px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--bg-card);border:1px solid var(--border2);border-radius:var(--r-sm);color:var(--text-2);cursor:pointer;transition:background .15s;}
+.hist-export:active{background:var(--bg-soft);}
+
+.filter-bar{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;margin:0 -16px 12px;padding:0 16px;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+.filter-bar::-webkit-scrollbar{display:none;}
+.filter-sel{flex:0 0 auto;width:auto;border-radius:99px;padding:7px 28px 7px 13px;font-size:12px;}
+.filter-sel.active{background-color:var(--accent);border-color:var(--accent);color:#fff;font-weight:500;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23FFFFFF' stroke-width='2' stroke-linecap='round' fill='none'/%3E%3C/svg%3E");}
+@media (min-width:768px){.filter-bar{margin:0 0 12px;padding:0;}.filter-sel{flex:0 0 auto;width:auto;}}
+
+.trx-list{gap:0;}
+.trx-date-group{display:flex;justify-content:space-between;align-items:baseline;gap:10px;border-bottom:none;padding:14px 2px 6px;margin-bottom:0;font-size:12px;}
+.trx-day-total{font-weight:500;color:var(--text-2);letter-spacing:0;text-transform:none;font-variant-numeric:tabular-nums;}
+.trx-day{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--r-md);overflow:hidden;}
+.trx-day .trx-card{border:none;border-radius:0;background:none;align-items:center;animation:none;}
+.trx-day .trx-card + .trx-card{border-top:1px solid var(--border);}
+.trx-day .trx-card:active{background:var(--bg-soft);}
+.trx-meta{font-size:12px;}

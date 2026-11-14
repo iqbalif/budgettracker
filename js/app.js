@@ -962,7 +962,7 @@ function loadHistory() {
   document.getElementById('hist-summary').innerHTML = `
     <div class="hs-item"><div class="hs-label">Masuk</div><div class="hs-val" style="color:var(--in)">${fmtRp(totalIn)}</div></div>
     <div class="hs-item"><div class="hs-label">Keluar</div><div class="hs-val" style="color:var(--out)">${fmtRp(totalOut)}</div></div>
-    <div class="hs-item"><div class="hs-label">Saldo</div><div class="hs-val" style="color:${saldo>=0?'var(--in)':'var(--out)'}">${fmtRp(Math.abs(saldo))}</div></div>`;
+    <div class="hs-item"><div class="hs-label">Saldo</div><div class="hs-val" style="color:${saldo>=0?'var(--in)':'var(--out)'}">${saldo < 0 ? '−' : ''}${fmtRp(Math.abs(saldo))}</div></div>`;
 
   const listEl  = document.getElementById('history-list');
   const emptyEl = document.getElementById('hist-empty');
@@ -981,10 +981,14 @@ function loadHistory() {
   });
 
   const sortedDates = Object.keys(groups).sort().reverse();
-  listEl.innerHTML = sortedDates.map(date => `
-    <div class="trx-date-group">${getIndonesianDayName(date) ? getIndonesianDayName(date) + ', ' : ''}${fmtDate(date)}</div>
-    ${groups[date].map(trxCard).join('')}
-  `).join('');
+  listEl.innerHTML = sortedDates.map(date => {
+    const items = groups[date];
+    const net = items.reduce((sum, t) => sum + (t.type === 'in' ? t.nominal : -t.nominal), 0);
+    const dayLabel = `${getIndonesianDayName(date) ? getIndonesianDayName(date) + ', ' : ''}${fmtDate(date)}`;
+    return `
+    <div class="trx-date-group"><span>${dayLabel}</span><span class="trx-day-total">${net < 0 ? '−' : '+'}${fmtRp(Math.abs(net))}</span></div>
+    <div class="trx-day">${items.map(trxCard).join('')}</div>`;
+  }).join('');
 }
 
 function exportCSV() {
@@ -1040,7 +1044,6 @@ function trxCard(t) {
       </div>
       <div class="trx-right">
         <div class="trx-amt ${isOut?'out':'in'}">${isOut?'−':'+'}${fmtRp(t.nominal)}</div>
-        <div class="trx-date">${fmtDate(t.tanggal)}</div>
       </div>
     </div>`;
 }
