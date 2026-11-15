@@ -857,3 +857,6 @@ html[data-theme="dark"] #reminder-form-card input[type="checkbox"]:checked{backg
 .theme-opt{flex:1;padding:8px 6px;border:none;border-radius:6px;background:none;color:var(--text-2);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:background .15s,color .15s;}
 .theme-opt.active{background:var(--bg-card);color:var(--text);font-weight:500;box-shadow:0 1px 3px rgba(0,0,0,.1);}
 html[data-theme="dark"] .theme-opt.active{background:var(--bg-muted);box-shadow:none;}
+
+/* Toast: pesan panjang membungkus ke baris berikutnya, tidak terpotong di tepi layar */
+.toast{white-space:normal;width:max-content;max-width:min(calc(100vw - 32px), 420px);text-align:center;border-radius:16px;line-height:1.4;}
