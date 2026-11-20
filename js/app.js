@@ -21,17 +21,14 @@ let editReminderId = null;
 let isRemindersFetched = false;
 
 // ---- INIT ----
+// Aplikasi langsung tampil dari cache; splash hanya memudar singkat di atasnya
 window.addEventListener('DOMContentLoaded', () => {
   loadSettingsForm();
-  setTimeout(() => {
-    const sp = document.getElementById('splash');
-    sp.classList.add('out');
-    setTimeout(() => {
-      sp.style.display = 'none';
-      document.getElementById('app').classList.remove('hidden');
-      startApp();
-    }, 480);
-  }, 900);
+  const sp = document.getElementById('splash');
+  document.getElementById('app').classList.remove('hidden');
+  startApp();
+  requestAnimationFrame(() => sp.classList.add('out'));
+  setTimeout(() => { sp.style.display = 'none'; }, 220);
 });
 
 function startApp() {
@@ -63,7 +60,7 @@ function initApp() {
   }
 
   if (!hasConfig) {
-    showToast('Isi Spreadsheet ID & API Key di Pengaturan dulu 👆');
+    showToast('Isi Spreadsheet ID dan API Key di Pengaturan');
     return;
   }
 
@@ -132,7 +129,7 @@ async function triggerManualRefresh() {
   showToast('Menyinkronkan data dengan Google Sheets...');
   const success = await refreshDataBackground();
   if (success) {
-    showToast('Data berhasil diperbarui ✓');
+    showToast('Data berhasil diperbarui');
   }
 }
 
@@ -245,8 +242,8 @@ function loadDashboard() {
     if (mon === 'all' || totalIn === 0) {
       rateEl.textContent = '';
     } else {
-      const rate = (totalOut / totalIn * 100).toFixed(1);
-      rateEl.textContent = `Pengeluaran ${rate}% dari pemasukan`;
+      const rate = totalOut / totalIn * 100;
+      rateEl.textContent = `Pengeluaran ${fmtPctValue(rate)} dari pemasukan`;
       rateEl.style.color = rate < 70 ? '#A7D8A7' : rate <= 90 ? '#F3C97B' : '#F4956A';
     }
   }
@@ -314,6 +311,9 @@ function updateHeroMoM(mon, totalIn, totalOut) {
 function updateHeroSub(mon, totalOut) {
   const el = document.getElementById('dash-hero-sub'); // Elemen Bawah
   const topDaysEl = document.getElementById('dash-hero-days'); // Elemen Atas
+  const titleEl = document.getElementById('dash-hero-title');
+  // Label kartu: "Bulan ini · hari X dari Y" untuk bulan berjalan, "Ringkasan" untuk bulan lain
+  if (titleEl) titleEl.textContent = (mon && mon !== 'all' && mon === todayISO().slice(0, 7)) ? 'Bulan ini' : 'Ringkasan';
   
   if (!el) return;
 
@@ -342,7 +342,7 @@ function updateHeroSub(mon, totalOut) {
     
     // Teks Atas: Progress Hari (Format: • HARI 17/31)
     if(topDaysEl) {
-      topDaysEl.innerHTML = ` &nbsp;•&nbsp; HARI ${dayOfMonth}/${totalDaysInMonth}`;
+      topDaysEl.textContent = ` · hari ${dayOfMonth} dari ${totalDaysInMonth}`;
     }
   } else {
     // ---- BULAN LALU (SEJARAH) ----
@@ -360,7 +360,7 @@ function renderTop3Transactions(outs) {
 
   const top3 = [...outs].sort((a, b) => b.nominal - a.nominal).slice(0, 3);
   if (!top3.length) {
-    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:10px 0;">Belum ada transaksi besar bulan ini</p>';
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:12px 0;">Belum ada transaksi besar bulan ini</p>';
     return;
   }
 
@@ -504,7 +504,7 @@ function renderUtilChart(conNeed, conWant, proNeed, proWant) {
   const chEl = document.getElementById('util-chart');
 
   if (!hasCon && !hasPro) {
-    chEl.innerHTML = '<p class="empty-state" style="padding:10px 0;font-size:13px;">Belum ada pengeluaran bulan ini</p>';
+    chEl.innerHTML = '<p class="empty-state" style="padding:12px 0;font-size:13px;">Belum ada pengeluaran bulan ini</p>';
     return;
   }
 
@@ -558,9 +558,14 @@ const REKAP_COLORS_DARK = {
 function isDarkTheme() { return document.documentElement.getAttribute('data-theme') === 'dark'; }
 const REKAP_LIMIT = 8;
 
+// Satu format persen di seluruh aplikasi: koma, satu desimal (61,2%)
+function fmtPctValue(value) {
+  return (Number(value) || 0).toFixed(1).replace('.', ',') + '%';
+}
+
 function fmtPct(part, total) {
   if (!total) return '0%';
-  return (part / total * 100).toFixed(1).replace('.', ',') + '%';
+  return fmtPctValue(part / total * 100);
 }
 
 // Mengembalikan jumlah baris total (sebelum dipotong `limit`)
@@ -608,7 +613,7 @@ function renderInRekap(ins) {
   const el = document.getElementById('dash-in-rekap');
   if (!el) return;
   if (!ins.length) {
-    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:14px;">Belum ada pemasukan bulan ini</p>';
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:16px;">Belum ada pemasukan bulan ini</p>';
     return;
   }
   renderRekap(el, ins, 'in', inCatView, inShowSubs, 0);
@@ -619,7 +624,7 @@ function renderOutRekap(outs) {
   const btnShow = document.getElementById('btn-show-all-out');
   if (!el) return;
   if (!outs.length) {
-    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:14px;">Belum ada pengeluaran bulan ini</p>';
+    el.innerHTML = '<p class="empty-state" style="font-size:13px;padding:16px;">Belum ada pengeluaran bulan ini</p>';
     if (btnShow) btnShow.style.display = 'none';
     return;
   }
@@ -665,7 +670,7 @@ function renderDailyChart(mon, outs) {
   }).join('');
 
   el.innerHTML = `
-    <div class="section-row" style="margin-top:22px;"><span class="section-label">Pengeluaran Harian</span></div>
+    <div class="section-row" style="margin-top:32px;"><span class="section-label">Pengeluaran Harian</span></div>
     <div class="dc-card">
       <div class="dc-info" id="dc-info"></div>
       <div class="dc-bars">${bars}</div>
@@ -858,7 +863,7 @@ function renderTopBars(outs) {
           <div class="cb-row" ${hasSubs ? `onclick="toggleCat('${kat}')" style="cursor:pointer;"` : ''}>
             <div class="cb-label">
               <span class="cb-label-main">
-                <span style="display:flex;align-items:center;gap:5px;">
+                <span style="display:flex;align-items:center;gap:4px;">
                   ${kat}
                   ${hasSubs ? `<svg class="chevron ${isExp?'open':''}" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>` : ''}
                 </span>
@@ -1073,7 +1078,7 @@ function openTrxModal(json) {
 
   document.getElementById('modal-content').innerHTML = `
     <h2 class="modal-title">${escapeHtml(t.deskripsi || '(tanpa deskripsi)')}</h2>
-    <div style="font-size:24px;font-weight:500;color:${isOut?'var(--out)':'var(--in)'};margin-bottom:18px;">${isOut?'−':'+'}${fmtRp(t.nominal)}</div>
+    <div style="font-size:24px;font-weight:500;color:${isOut?'var(--out)':'var(--in)'};margin-bottom:16px;">${isOut?'−':'+'}${fmtRp(t.nominal)}</div>
     <div style="margin-bottom:16px;">${rows.map(([k,v])=>`<div class="mdetail-row"><span class="mdetail-key">${escapeHtml(k)}</span><span class="mdetail-val">${escapeHtml(v)}</span></div>`).join('')}</div>
     <div class="modal-icon-actions">
       <button class="micon-btn edit" type="button" title="Edit" aria-label="Edit transaksi" onclick='openEditModal(${jsArg(JSON.stringify(t))})'>
@@ -1191,7 +1196,7 @@ async function doEdit(json) {
   try {
     await Sheets.updateTransaction(updated);
     closeModal(); // Modal baru ditutup SETELAH berhasil simpan
-    showToast('Transaksi diperbarui ✓');
+    showToast('Transaksi diperbarui');
     await refreshData();
   } catch(e) { 
     showToast('Gagal update: ' + e.message); 
@@ -1224,7 +1229,7 @@ async function doDuplicate(json) {
   try {
     await Sheets.addTransaction(duplicated);
     closeModal(); // Modal baru ditutup SETELAH berhasil simpan
-    showToast('Transaksi diduplikasi ✓');
+    showToast('Transaksi diduplikasi');
     await refreshData();
   } catch (e) {
     showToast('Gagal duplikasi: ' + e.message);
@@ -1237,7 +1242,7 @@ function confirmDelete(json) {
   const t = JSON.parse(json);
   document.getElementById('modal-content').innerHTML = `
     <h2 class="modal-title">Hapus Transaksi?</h2>
-    <p style="font-size:14px;color:var(--text-2);margin-bottom:22px;">"${escapeHtml(t.deskripsi)}" — ${fmtRp(t.nominal)}<br>Aksi ini tidak bisa dibatalkan.</p>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:24px;">"${escapeHtml(t.deskripsi)}" — ${fmtRp(t.nominal)}<br>Aksi ini tidak bisa dibatalkan.</p>
     <div class="modal-actions">
       <button class="mbtn sec" onclick="closeModal()">Batal</button>
       <button class="mbtn del" onclick='doDelete(${jsArg(JSON.stringify(t))})'>Hapus</button>
@@ -1260,6 +1265,8 @@ function switchInputTab(tab) {
   document.getElementById('itab-manual').classList.toggle('active', tab === 'manual');
   document.getElementById('input-ai-section').classList.toggle('hidden', tab !== 'ai');
   document.getElementById('input-manual-section').classList.toggle('hidden', tab !== 'manual');
+  const sub = document.getElementById('input-page-sub');
+  if (sub) sub.textContent = tab === 'manual' ? 'Isi rincian transaksinya' : 'Ketik bebas, AI yang mengklasifikasikan';
   if (tab === 'manual') initManualForm();
 }
 
@@ -1303,11 +1310,11 @@ function showAIResult(t, el) {
   el.innerHTML = `
     <div class="rp-head">
       <div style="flex:1">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Deskripsi</div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Deskripsi</div>
         <input class="rp-edit-input" id="pre-desc" value="${escapeHtml(t.deskripsi || '')}" />
       </div>
       <div style="text-align:right;flex-shrink:0">
-        <div style="font-size:11px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Nominal</div>
+        <div style="font-size:12px;color:var(--text-3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em">Nominal</div>
         <input class="rp-edit-input" id="pre-nominal" type="text" inputmode="numeric" value="${formatNominalInputValue(t.nominal)}" style="text-align:right;width:120px" />
       </div>
     </div>
@@ -1375,7 +1382,7 @@ async function saveAI() {
     pendingTrx = null;
     document.getElementById('ai-text').value = '';
     document.getElementById('ai-result').classList.add('hidden');
-    showToast('Transaksi tersimpan ✓');
+    showToast('Transaksi tersimpan');
     await refreshData();
   } catch(e) { 
     showToast('Gagal simpan: ' + e.message); 
@@ -1481,7 +1488,7 @@ async function saveManual() {
 
   try {
     await Sheets.addTransaction(trx);
-    showToast('Tersimpan ✓');
+    showToast('Tersimpan');
     document.getElementById('m-desc').value   = '';
     document.getElementById('m-nominal').value = '';
     document.getElementById('m-tgl').value    = todayISO();
@@ -1947,28 +1954,28 @@ function renderBudgetRules() {
     const barColor = pct >= 100 ? 'var(--out)' : pct >= 80 ? 'var(--warn-bar)' : 'var(--accent)';
     const statusColor = pct >= 100 ? 'var(--out)' : pct >= 80 ? 'var(--warn)' : 'var(--text-2)';
     const statusText = pct >= 100 
-      ? `${icon('danger', 13)} Over budget (${pct.toFixed(1)}%)` 
+      ? `${icon('danger', 13)} Lewat batas (${fmtPctValue(pct)})` 
       : pct >= 80 
-        ? `${icon('warn', 13)} Mendekati batas (${pct.toFixed(1)}%)` 
-        : `${pct.toFixed(1)}% terpakai`;
+        ? `${icon('warn', 13)} Mendekati batas (${fmtPctValue(pct)})` 
+        : `${fmtPctValue(pct)} terpakai`;
 
     return `
       <div class="budget-rule-card" style="padding:16px; border-radius:12px; border:1px solid var(--border); margin-bottom:12px; display:flex; flex-direction:column; gap:12px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
           <div>
-            <div style="font-weight:700; font-size:15px; color:var(--text); margin-bottom:2px;">${escapeHtml(title)}</div>
-            <div style="font-size:11px; color:var(--text-3); text-transform:uppercase; letter-spacing:0.02em;">
+            <div style="font-weight:500; font-size:15px; color:var(--text); margin-bottom:2px;">${escapeHtml(title)}</div>
+            <div style="font-size:12px; color:var(--text-3); text-transform:uppercase; letter-spacing:0.02em;">
               ${r.type === 'percent' ? `Persentase: ${r.limit}% dari ${r.base === 'in' ? 'Pemasukan' : r.base === 'out' ? 'Pengeluaran' : escapeHtml(r.baseTarget)}` : 'Nominal Tetap'}
             </div>
           </div>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:8px;">
             <button onclick="editBudgetRule('${r.id}')" class="btn-sm ghost">Edit</button>
             <button onclick="deleteBudgetRule('${r.id}')" class="btn-sm danger">Hapus</button>
           </div>
         </div>
 
         <div style="width:100%;">
-          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-2); margin-bottom:6px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-2); margin-bottom:8px;">
             <span>Terpakai: <b>${fmtRp(usage)}</b></span>
             <span>Batas: <b>${fmtRp(limitVal)}</b></span>
           </div>
@@ -2118,7 +2125,7 @@ function checkBudgetAlerts() {
             <div class="al-row ${isDanger ? 'danger' : 'warn'}">
               <span class="al-ico">${icon(isDanger ? 'danger' : 'warn', 18)}</span>
               <div class="al-body">
-                <div class="al-title"><span>${escapeHtml(title)}</span><span class="al-pct">${Math.round(pct)}%</span></div>
+                <div class="al-title"><span>${escapeHtml(title)}</span><span class="al-pct">${fmtPctValue(pct)}</span></div>
                 <div class="al-sub">${fmtRp(usage)} dari ${fmtRp(limitVal)}${basis}</div>
                 <div class="al-bar"><i style="width:${Math.min(pct, 100)}%"></i></div>
               </div>
@@ -2129,7 +2136,7 @@ function checkBudgetAlerts() {
   }
 
   if (alertsHtml) {
-    budgetAlertsHtml = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Peringatan Budget</span></div><div class="alert-panel">${alertsHtml}</div>`;
+    budgetAlertsHtml = `<div class="section-row" style="margin-top:32px; margin-bottom:12px;"><span class="section-label">Peringatan Budget</span></div><div class="alert-panel">${alertsHtml}</div>`;
   }
 
   // Baca billReminders
@@ -2268,7 +2275,7 @@ function checkBudgetAlerts() {
           const settleCall = `toggleSettleReminder(${jsArg(r.id)}, ${jsArg(occurrenceStr)})`;
           const actions = isSettled
             ? `<span class="al-done">${icon('check', 14)}Lunas</span><button class="btn-sm ghost" onclick="${settleCall}">Batal</button>`
-            : `<button class="btn-sm pri" onclick="payBillReminder(${jsArg(r.name)}, ${Number(r.nominal) || 0}, ${jsArg(r.kategori || '')}, ${jsArg(r.sub_kategori || '')}, ${jsArg(r.urgensi || 'Kebutuhan')}, ${jsArg(r.utilitas || 'Consumptive')})">Input</button><button class="btn-sm ok" onclick="${settleCall}">Selesai</button>`;
+            : `<button class="btn-sm ghost" onclick="payBillReminder(${jsArg(r.name)}, ${Number(r.nominal) || 0}, ${jsArg(r.kategori || '')}, ${jsArg(r.sub_kategori || '')}, ${jsArg(r.urgensi || 'Kebutuhan')}, ${jsArg(r.utilitas || 'Consumptive')})">Input</button><button class="btn-sm ok" onclick="${settleCall}">Selesai</button>`;
 
           const cardHtml = `
             <div class="al-row bill${isSettled ? ' settled' : ''}${isLate ? ' late' : ''}" title="${escapeHtml(dueLabel)} (${escapeHtml(descText)})">
@@ -2292,7 +2299,7 @@ function checkBudgetAlerts() {
 
     const remindersHtml = reminderCards.map(c => c.html).join('');
     if (remindersHtml) {
-      const headerHtml = `<div class="section-row" style="margin-top:22px; margin-bottom:12px;"><span class="section-label">Pengingat Tagihan Terdekat</span></div>`;
+      const headerHtml = `<div class="section-row" style="margin-top:32px; margin-bottom:12px;"><span class="section-label">Pengingat Tagihan Terdekat</span></div>`;
       billRemindersHtml = headerHtml + `<div class="alert-panel">${remindersHtml}</div>`;
     }
   }
@@ -2508,7 +2515,7 @@ function addBillReminder() {
     }
     localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
     cancelReminderEdit();
-    showToast('Pengingat tagihan berhasil diperbarui ✓');
+    showToast('Pengingat tagihan berhasil diperbarui');
   } else {
     const newReminder = {
       id: 'rem_' + Date.now(),
@@ -2526,7 +2533,7 @@ function addBillReminder() {
     billReminders.push(newReminder);
     localStorage.setItem('bill_reminders', JSON.stringify(billReminders));
     cancelReminderEdit();
-    showToast('Pengingat tagihan berhasil ditambahkan ✓');
+    showToast('Pengingat tagihan berhasil ditambahkan');
   }
 
   syncBillReminderToCloud(editedReminderId || billReminders[billReminders.length - 1].id);
@@ -2660,7 +2667,7 @@ function renderBillReminders() {
     }
 
     // 4. SUB-JUDUL KELOMPOK (HEADER HTML)
-    finalHtml += `<div style="font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-top: ${isFirst ? '12px' : '22px'}; margin-bottom: 8px;">${freq}</div>`;
+    finalHtml += `<div style="font-size: 12px; font-weight: 500; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; margin-top: ${isFirst ? '12px' : '22px'}; margin-bottom: 8px;">${freq}</div>`;
     isFirst = false;
 
     // Render cards inside group
@@ -2671,7 +2678,7 @@ function renderBillReminders() {
 
       let overdueBadge = '';
       if (r.freq === 'Sekali Saja' && r.date < todayStr) {
-        overdueBadge = `<span style="background: rgba(196, 118, 58, 0.12); color: var(--out); font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; margin-left: 6px; display: inline-block;">Sudah Lewat</span>`;
+        overdueBadge = `<span style="background: rgba(196, 118, 58, 0.12); color: var(--out); font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 4px; margin-left: 8px; display: inline-block;">Sudah Lewat</span>`;
       }
 
       let customCycleBadge = '';
@@ -2682,7 +2689,7 @@ function renderBillReminders() {
         else if (r.freq === 'Bulanan') unitLabel = 'Bulan';
         else if (r.freq === 'Tahunan') unitLabel = 'Tahun';
         
-        customCycleBadge = `<span style="background: rgba(139, 115, 85, 0.1); color: var(--accent); font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; margin-left: 6px; text-transform: uppercase; letter-spacing: 0.03em;">Tiap ${r.interval} ${unitLabel}</span>`;
+        customCycleBadge = `<span style="background: rgba(139, 115, 85, 0.1); color: var(--accent); font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 4px; margin-left: 8px; text-transform: uppercase; letter-spacing: 0.03em;">Tiap ${r.interval} ${unitLabel}</span>`;
       }
 
       if (r.freq === 'Sekali Saja') {
@@ -2703,16 +2710,16 @@ function renderBillReminders() {
         descText = `Setiap tanggal ${dayMonth}`;
       }
 
-      const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 600; color: var(--accent); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
+      const nominalHtml = r.nominal > 0 ? `<div style="font-size: 13px; font-weight: 500; color: var(--accent); margin-top: 4px;">${fmtRp(r.nominal)}</div>` : '';
 
       return `
-        <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; padding:14px; border-radius:var(--r-md); border:1px solid var(--border); margin-bottom:10px;">
+        <div class="budget-rule-card" style="display:flex; justify-content:space-between; align-items:center; padding:16px; border-radius:var(--r-md); border:1px solid var(--border); margin-bottom:12px;">
           <div>
-            <div style="font-weight:600; font-size:14px; color:var(--text); margin-bottom:4px; display: flex; align-items: center; flex-wrap: wrap;">${escapeHtml(r.name)}${customCycleBadge}</div>
+            <div style="font-weight:500; font-size:14px; color:var(--text); margin-bottom:4px; display: flex; align-items: center; flex-wrap: wrap;">${escapeHtml(r.name)}${customCycleBadge}</div>
             <div style="font-size:12px; color:var(--text-3);">${descText}${overdueBadge}</div>
             ${nominalHtml}
           </div>
-          <div style="display:flex; gap:6px;">
+          <div style="display:flex; gap:8px;">
             <button onclick="editBillReminder('${r.id}')" class="btn-sm ghost">Edit</button>
             <button onclick="deleteBillReminder('${r.id}')" class="btn-sm danger">Hapus</button>
           </div>

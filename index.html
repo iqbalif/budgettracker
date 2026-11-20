@@ -64,7 +64,7 @@
       background: var(--bg-card) !important;
       outline: none;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: background-color 0.2s ease, border-color 0.2s ease;
       display: inline-flex !important;
       align-items: center;
       justify-content: center;
@@ -104,7 +104,7 @@
     /* Optimasi Ukuran Tombol Toggle Khusus Tampilan Desktop */
     @media (min-width: 768px) {
       #btn-toggle-budget-form, #btn-toggle-reminder-form {
-        padding: 8px 18px !important;
+        padding: 8px 16px !important;
         font-size: 13px !important;
         letter-spacing: 0.02em;
       }
@@ -157,7 +157,7 @@
 
           <div class="hero-card">
             <div class="hero-top">
-              <span class="hero-label">Ringkasan Bulan Ini<span id="dash-hero-days"></span></span>
+              <span class="hero-label"><span id="dash-hero-title">Bulan ini</span><span id="dash-hero-days"></span></span>
               <select id="dash-month-filter" class="hero-select" onchange="loadDashboard()"></select>
             </div>
             <div class="hero-inout">
@@ -184,7 +184,7 @@
             
             <div class="dash-col">
               
-              <div class="section-row" style="margin-top:22px;">
+              <div class="section-row" style="margin-top:32px;">
                 <span class="section-label">Rekap Pemasukan</span>
                 <div class="rekap-controls">
                   <div class="cat-switch switch-rincian" id="in-toggle-rincian">
@@ -199,7 +199,7 @@
               </div>
               <div id="dash-in-rekap" class="in-rekap"></div>
 
-              <div class="section-row" style="margin-top:22px;">
+              <div class="section-row" style="margin-top:32px;">
                 <span class="section-label">Breakdown Pengeluaran</span>
               </div>
               <div id="dash-breakdown-matrix"></div>
@@ -211,7 +211,7 @@
 
             <div class="dash-col">
               
-              <div class="section-row" style="margin-top:22px;">
+              <div class="section-row" style="margin-top:32px;">
                 <span class="section-label">Rekap Pengeluaran</span>
                 <div class="rekap-controls">
                   <div class="cat-switch switch-rincian" id="out-toggle-rincian">
@@ -227,17 +227,17 @@
               <div id="dash-out-rekap" class="in-rekap"></div>
               <button id="btn-show-all-out" class="mbtn sec" style="width:100%;margin-top:12px;font-size:12px;padding:8px;display:none;" onclick="toggleShowAllOut()">Lihat Semua</button>
 
-              <div class="section-row" style="margin-top:22px;">
+              <div class="section-row" style="margin-top:32px;">
                 <span class="section-label">Pengeluaran Terbesar</span>
               </div>
               <div id="dash-top3"></div>
-              <div id="dash-anomaly" style="margin-top:10px;"></div>
+              <div id="dash-anomaly" style="margin-top:12px;"></div>
 
             </div>
 
           </div>
 
-          <div id="sync-status-text" style="font-size: 11px; color: var(--text-3); text-align: center; margin-top: 20px; margin-bottom: 10px;"></div>
+          <div id="sync-status-text" style="font-size: 12px; color: var(--text-3); text-align: center; margin-top: 20px; margin-bottom: 12px;"></div>
 
         </div>
       </section>
@@ -245,7 +245,7 @@
       <section id="page-input" class="page">
         <div class="page-scroll">
           <h2 class="page-title">Input Transaksi</h2>
-          <p class="page-sub">Ketik bebas, AI yang mengklasifikasikan</p>
+          <p class="page-sub" id="input-page-sub">Ketik bebas, AI yang mengklasifikasikan</p>
 
           <div class="input-tabs">
             <button class="itab active" id="itab-ai" onclick="switchInputTab('ai')">✦ AI</button>
@@ -255,7 +255,7 @@
           <div id="input-ai-section">
             <div class="ai-card">
               <textarea id="ai-text" class="ai-textarea"
-                placeholder="Ketik santai, AI akan bantu rapikan! ✨&#10;&#10;💡 Trik Pro:&#10;• Biasa: makan siang 35k&#10;• Anti-diubah (pakai kutip): &quot;Saos ABC 230ml x2&quot; 50rb&#10;• Kasih Clue (pakai koma): bakso 15k, pesan antar"></textarea>
+                placeholder="Tulis transaksinya, misalnya: makan siang 35k&#10;&#10;Teks dalam kutip tidak diubah: &quot;Saos ABC 230ml x2&quot; 50rb&#10;Petunjuk setelah koma: bakso 15k, pesan antar"></textarea>
               <button class="btn-ai" id="btn-parse" onclick="parseWithAI()">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
                 Proses dengan AI
@@ -314,7 +314,7 @@
 
       <section id="page-budgeting" class="page">
         <div class="page-scroll" style="padding: 0 16px 24px 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
             <div>
               <h2 class="page-title" style="margin-bottom:2px;">Budgeting</h2>
               <p class="page-sub">Atur batasan pengeluaran agar lebih terkontrol</p>
@@ -323,7 +323,7 @@
           </div>
           
           <div id="budget-form-card" class="budget-form-card hidden" style="background: var(--bg-card) !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
-            <div id="budget-edit-badge" class="hidden" style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:6px 10px; border-radius:6px; text-align:center;">Sedang Mengedit Aturan Budget</div>
+            <div id="budget-edit-badge" class="hidden" style="font-size:12px; font-weight:500; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:8px 12px; border-radius:6px; text-align:center;">Sedang Mengedit Aturan Budget</div>
             
             <div class="mf-field">
               <label>Cakupan Budget</label>
@@ -369,25 +369,25 @@
               <input type="text" inputmode="numeric" id="budget-limit" placeholder="0" oninput="formatBudgetLimit(this)">
             </div>
 
-            <div style="display:flex; gap:8px; margin-top:10px; width:100%;">
+            <div style="display:flex; gap:8px; margin-top:12px; width:100%;">
               <button id="btn-save-budget" class="btn-save" style="width:100%; margin-top:0;" onclick="addBudgetRule()">Tambah Aturan</button>
               <button id="btn-cancel-budget" class="mbtn sec hidden" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;" onclick="cancelBudgetEdit()">Batal</button>
             </div>
           </div>
 
-          <div class="section-row" style="margin-top: 24px;"><span class="section-label" style="font-weight: 700 !important;">Daftar Aturan Budget</span></div>
+          <div class="section-row" style="margin-top: 24px;"><span class="section-label" style="font-weight: 500 !important;">Daftar Aturan Budget</span></div>
           <div id="budget-rules-list"></div>
 
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px; margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 36px; border-top: 1px solid var(--border); padding-top: 24px; margin-bottom: 16px;">
             <div>
               <h2 class="page-title" style="margin-bottom:2px; margin-top:0; border-top:none; padding-top:0;">Pengingat Tagihan</h2>
-              <p style="font-size:12px; color:var(--text-2); margin-bottom:0;">Atur pengingat tagihan berkala atau sekali bayar.</p>
+              <p style="font-size:12px; color:var(--text-2); margin-bottom:0;">Atur pengingat tagihan berkala atau sekali bayar</p>
             </div>
             <button id="btn-toggle-reminder-form" class="btn-pill" onclick="toggleReminderForm()">+ Tagihan</button>
           </div>
           
           <div id="reminder-form-card" class="budget-form-card hidden" style="background: var(--bg-card) !important; border: 1px solid var(--border); border-radius: 12px !important; padding: 16px !important; margin-bottom: 16px !important; display: block;">
-              <div id="reminder-edit-badge" class="hidden" style="font-size:12px; font-weight:600; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:6px 10px; border-radius:6px; text-align:center;">Sedang Mengedit Pengingat Tagihan</div>
+              <div id="reminder-edit-badge" class="hidden" style="font-size:12px; font-weight:500; color:var(--accent); margin-bottom:12px; background:rgba(139,115,85,0.1); padding:8px 12px; border-radius:6px; text-align:center;">Sedang Mengedit Pengingat Tagihan</div>
 
               <div class="mf-field">
                 <label>Nama Tagihan</label>
@@ -410,7 +410,7 @@
                 </select>
               </div>
 
-              <div id="reminder-custom-toggle-row" class="mf-field" style="margin-top: 5px;">
+              <div id="reminder-custom-toggle-row" class="mf-field" style="margin-top: 4px;">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text-2);">
                   <input type="checkbox" id="reminder-custom-toggle" onchange="toggleReminderFreq()" style="width: auto !important; display: inline-block !important; margin: 0; cursor: pointer;">
                   Kustomisasi Frekuensi (Interval)
@@ -439,7 +439,7 @@
                 <input type="date" id="reminder-date">
               </div>
 
-              <div class="mf-field" style="margin-top: 5px; margin-bottom: 12px;">
+              <div class="mf-field" style="margin-top: 4px; margin-bottom: 12px;">
                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--text-2);">
                   <input type="checkbox" id="reminder-meta-toggle" onchange="toggleReminderFreq()" style="width: auto !important; display: inline-block !important; margin: 0; cursor: pointer;">
                   Hubungkan ke Rincian Transaksi (Auto-fill)
@@ -474,13 +474,13 @@
                 </div>
               </div>
 
-              <div style="display:flex; gap:8px; margin-top:10px; width:100%;">
+              <div style="display:flex; gap:8px; margin-top:12px; width:100%;">
                 <button id="btn-save-reminder" class="btn-save" style="width:100%; margin-top:0;" onclick="addBillReminder()">Tambah Pengingat</button>
                 <button id="btn-cancel-reminder" class="mbtn sec hidden" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;" onclick="cancelReminderEdit()">Batal</button>
               </div>
             </div>
 
-            <div class="section-row" style="margin-top: 20px;"><span class="section-label" style="text-transform: uppercase; font-weight: 700 !important;">Daftar Pengingat</span></div>
+            <div class="section-row" style="margin-top: 20px;"><span class="section-label" style="text-transform: uppercase; font-weight: 500 !important;">Daftar Pengingat</span></div>
             <div id="bill-reminders-list" class="earth-tone"></div>
         </div>
       </section>
@@ -530,7 +530,7 @@
           <button class="btn-save-cfg" onclick="saveSettings()">Simpan Pengaturan</button>
           <div id="settings-msg" class="settings-msg hidden"></div>
 
-          <div style="font-size: 11px; color: var(--text-3); text-align: center; margin-top: 24px; margin-bottom: 10px; font-family: 'DM Sans', sans-serif;">
+          <div style="font-size: 12px; color: var(--text-3); text-align: center; margin-top: 24px; margin-bottom: 12px; font-family: 'DM Sans', sans-serif;">
             Designed & Developed by Alif Iqbal
           </div>
 
